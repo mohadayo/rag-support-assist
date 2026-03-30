@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.env
+backend/chroma_data/
+
+# Node
+node_modules/
+.next/
+frontend/.env.local
+
+# OS
+.DS_Store
+Thumbs.db
