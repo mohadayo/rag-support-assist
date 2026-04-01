@@ -1,12 +1,16 @@
 """Pydantic models for request/response schemas."""
 
+from typing import Literal
+
 from pydantic import BaseModel
+
+Tone = Literal["polite", "concise", "standard"]
 
 
 class QueryRequest(BaseModel):
     """問い合わせリクエスト"""
     query: str
-    tone: str = "standard"  # "polite" | "concise" | "standard"
+    tone: Tone = "standard"
 
 
 class SourceDocument(BaseModel):
