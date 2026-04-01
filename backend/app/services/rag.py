@@ -1,7 +1,11 @@
 """RAG回答生成サービス"""
 
+import json
+import logging
+
 from openai import OpenAI
-from ..models import SourceDocument
+
+logger = logging.getLogger(__name__)
 
 _client: OpenAI | None = None
 
@@ -83,6 +87,8 @@ def generate_answer(
         },
     ]
 
+    logger.info("回答生成リクエスト: tone=%s, contexts=%d件", tone, len(contexts))
+
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
@@ -94,6 +100,7 @@ def generate_answer(
     # エスカレーション判定
     should_escalate, reason = _check_escalation(client, query, answer, context_text)
 
+    logger.info("回答生成完了: escalate=%s", should_escalate)
     return answer, should_escalate, reason
 
 
@@ -118,8 +125,11 @@ def _check_escalation(
             max_tokens=200,
             response_format={"type": "json_object"},
         )
-        import json
         result = json.loads(response.choices[0].message.content)
         return result.get("should_escalate", False), result.get("reason")
+    except (json.JSONDecodeError, KeyError, IndexError) as e:
+        logger.warning("エスカレーション判定のレスポンス解析に失敗: %s", e)
+        return True, "エスカレーション判定でエラーが発生したため、安全のためエスカレーションを推奨"
     except Exception:
-        return False, None
+        logger.exception("エスカレーション判定中に予期しないエラーが発生")
+        return True, "エスカレーション判定でエラーが発生したため、安全のためエスカレーションを推奨"
