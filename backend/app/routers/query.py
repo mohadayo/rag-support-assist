@@ -1,10 +1,14 @@
 """問い合わせAPI"""
 
+import logging
+
 from fastapi import APIRouter
 
 from ..models import QueryRequest, QueryResponse, SourceDocument
 from ..services.vectorstore import search
 from ..services.rag import generate_answer
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["query"])
 
@@ -12,6 +16,7 @@ router = APIRouter(prefix="/api", tags=["query"])
 @router.post("/query", response_model=QueryResponse)
 async def handle_query(request: QueryRequest):
     """問い合わせ文を受け取り、RAGで回答候補を生成する"""
+    logger.info("問い合わせ受信: tone=%s, query=%s", request.tone, request.query[:80])
     # ベクトル検索
     results = search(request.query, n_results=5)
 
@@ -43,6 +48,10 @@ async def handle_query(request: QueryRequest):
         tone=request.tone,
     )
 
+    logger.info(
+        "問い合わせ応答完了: sources=%d件, escalate=%s",
+        len(sources), should_escalate,
+    )
     return QueryResponse(
         answer=answer,
         sources=sources,

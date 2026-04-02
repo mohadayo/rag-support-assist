@@ -2,13 +2,15 @@
 
 import logging
 import os
+import time
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from .routers import query, documents
 from .services.vectorstore import get_collection
@@ -33,6 +35,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start = time.time()
+        response = await call_next(request)
+        duration_ms = (time.time() - start) * 1000
+        logger.info(
+            "%s %s %d %.1fms",
+            request.method, request.url.path, response.status_code, duration_ms,
+        )
+        return response
+
+
+app.add_middleware(RequestLoggingMiddleware)
 
 app.include_router(query.router)
 app.include_router(documents.router)
