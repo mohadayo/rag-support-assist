@@ -1,5 +1,6 @@
 """文書管理API"""
 
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -8,6 +9,8 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from ..models import DocumentInfo, DocumentListResponse
 from ..services.chunker import chunk_text
 from ..services.vectorstore import add_documents, delete_document, get_document_stats
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["documents"])
 
@@ -43,6 +46,8 @@ async def upload_document(
             detail=f"カテゴリは次のいずれか: {', '.join(allowed_categories)}",
         )
 
+    logger.info("ドキュメントアップロード開始: filename=%s, category=%s", file.filename, category)
+
     # ファイル読み込み
     content = await file.read()
     text = content.decode("utf-8", errors="ignore")
@@ -65,6 +70,10 @@ async def upload_document(
     uploaded_at = datetime.now(timezone.utc).isoformat()
     _upload_times[doc_id] = uploaded_at
 
+    logger.info(
+        "ドキュメントアップロード完了: doc_id=%s, filename=%s, chunks=%d",
+        doc_id, file.filename, chunk_count,
+    )
     return DocumentInfo(
         id=doc_id,
         name=file.filename,
@@ -77,6 +86,7 @@ async def upload_document(
 @router.get("/documents", response_model=DocumentListResponse)
 async def list_documents():
     """登録済み文書の一覧を返す"""
+    logger.info("ドキュメント一覧取得")
     stats = get_document_stats()
     documents = [
         DocumentInfo(
@@ -94,6 +104,7 @@ async def list_documents():
 @router.delete("/documents/{doc_id}")
 async def remove_document(doc_id: str):
     """文書を削除する"""
+    logger.info("ドキュメント削除リクエスト: doc_id=%s", doc_id)
     deleted = delete_document(doc_id)
     if deleted == 0:
         raise HTTPException(status_code=404, detail="ドキュメントが見つかりません")
