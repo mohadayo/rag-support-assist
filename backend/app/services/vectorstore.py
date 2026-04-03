@@ -18,6 +18,7 @@ def get_chroma_client() -> chromadb.ClientAPI:
     global _client
     if _client is None:
         persist_dir = os.getenv("CHROMA_PERSIST_DIR", "./chroma_data")
+        logger.info("ChromaDBクライアントを初期化: persist_dir=%s", persist_dir)
         _client = chromadb.PersistentClient(
             path=persist_dir,
             settings=Settings(anonymized_telemetry=False),

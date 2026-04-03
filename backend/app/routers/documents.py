@@ -1,6 +1,7 @@
 """文書管理API"""
 
 import logging
+import os
 import uuid
 from datetime import datetime, timezone
 
@@ -11,6 +12,8 @@ from ..services.chunker import chunk_text
 from ..services.vectorstore import add_documents, delete_document, get_document_stats
 
 logger = logging.getLogger(__name__)
+
+MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", str(10 * 1024 * 1024)))  # デフォルト10MB
 
 router = APIRouter(prefix="/api", tags=["documents"])
 
@@ -50,6 +53,18 @@ async def upload_document(
 
     # ファイル読み込み
     content = await file.read()
+
+    # ファイルサイズ検証
+    if len(content) > MAX_FILE_SIZE:
+        logger.warning(
+            "ファイルサイズ超過: filename=%s, size=%d bytes, max=%d bytes",
+            file.filename, len(content), MAX_FILE_SIZE,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=f"ファイルサイズが上限({MAX_FILE_SIZE // (1024 * 1024)}MB)を超えています",
+        )
+
     text = content.decode("utf-8", errors="ignore")
 
     if not text.strip():

@@ -1,7 +1,16 @@
 """テキストのチャンク化処理"""
 
+import os
 
-def chunk_text(text: str, chunk_size: int = 500, overlap: int = 100) -> list[str]:
+DEFAULT_CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "500"))
+DEFAULT_CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "100"))
+
+
+def chunk_text(
+    text: str,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+    overlap: int = DEFAULT_CHUNK_OVERLAP,
+) -> list[str]:
     """テキストを指定サイズのチャンクに分割する。
 
     Args:
