@@ -2,10 +2,16 @@
 
 import json
 import logging
+import os
 
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
+
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", "0.3"))
+OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_TOKENS", "1500"))
+OPENAI_TIMEOUT = int(os.getenv("OPENAI_TIMEOUT", "30"))
 
 _client: OpenAI | None = None
 
@@ -90,10 +96,11 @@ def generate_answer(
     logger.info("回答生成リクエスト: tone=%s, contexts=%d件", tone, len(contexts))
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=OPENAI_MODEL,
         messages=messages,
-        temperature=0.3,
-        max_tokens=1500,
+        temperature=OPENAI_TEMPERATURE,
+        max_tokens=OPENAI_MAX_TOKENS,
+        timeout=OPENAI_TIMEOUT,
     )
     answer = response.choices[0].message.content
 
@@ -113,7 +120,7 @@ def _check_escalation(
     """エスカレーション要否を判定する"""
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": ESCALATION_CHECK_PROMPT},
                 {
@@ -124,6 +131,7 @@ def _check_escalation(
             temperature=0,
             max_tokens=200,
             response_format={"type": "json_object"},
+            timeout=OPENAI_TIMEOUT,
         )
         result = json.loads(response.choices[0].message.content)
         return result.get("should_escalate", False), result.get("reason")
