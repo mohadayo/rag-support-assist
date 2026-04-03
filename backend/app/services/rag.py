@@ -3,8 +3,9 @@
 import json
 import logging
 import os
+import time
 
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ def get_client() -> OpenAI:
     global _client
     if _client is None:
         _client = OpenAI()
+        logger.info("OpenAIクライアントを初期化しました (model=%s)", OPENAI_MODEL)
     return _client
 
 
@@ -93,21 +95,44 @@ def generate_answer(
         },
     ]
 
-    logger.info("回答生成リクエスト: tone=%s, contexts=%d件", tone, len(contexts))
+    logger.info(
+        "回答生成リクエスト: model=%s, tone=%s, contexts=%d件, temperature=%.1f, max_tokens=%d",
+        OPENAI_MODEL, tone, len(contexts), OPENAI_TEMPERATURE, OPENAI_MAX_TOKENS,
+    )
 
-    response = client.chat.completions.create(
-        model=OPENAI_MODEL,
-        messages=messages,
-        temperature=OPENAI_TEMPERATURE,
-        max_tokens=OPENAI_MAX_TOKENS,
-        timeout=OPENAI_TIMEOUT,
+    start_time = time.time()
+    try:
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=messages,
+            temperature=OPENAI_TEMPERATURE,
+            max_tokens=OPENAI_MAX_TOKENS,
+            timeout=OPENAI_TIMEOUT,
+        )
+    except OpenAIError as e:
+        elapsed = time.time() - start_time
+        logger.error("回答生成中にOpenAIエラーが発生: error=%s, elapsed=%.2fs", e, elapsed)
+        raise
+    except Exception as e:
+        elapsed = time.time() - start_time
+        logger.exception("回答生成中に予期しないエラーが発生: error=%s, elapsed=%.2fs", e, elapsed)
+        raise
+
+    elapsed = time.time() - start_time
+    usage = response.usage
+    logger.info(
+        "回答生成LLM応答: elapsed=%.2fs, prompt_tokens=%d, completion_tokens=%d, total_tokens=%d",
+        elapsed,
+        usage.prompt_tokens if usage else 0,
+        usage.completion_tokens if usage else 0,
+        usage.total_tokens if usage else 0,
     )
     answer = response.choices[0].message.content
 
     # エスカレーション判定
     should_escalate, reason = _check_escalation(client, query, answer, context_text)
 
-    logger.info("回答生成完了: escalate=%s", should_escalate)
+    logger.info("回答生成完了: escalate=%s, total_elapsed=%.2fs", should_escalate, time.time() - start_time)
     return answer, should_escalate, reason
 
 
