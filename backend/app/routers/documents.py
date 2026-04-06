@@ -1,6 +1,7 @@
 """文書管理API"""
 
 import logging
+import os
 import uuid
 from datetime import datetime, timezone
 
@@ -16,6 +17,10 @@ router = APIRouter(prefix="/api", tags=["documents"])
 
 # アップロード日時を保持する簡易ストア（MVPではインメモリ）
 _upload_times: dict[str, str] = {}
+
+# ファイルサイズ上限（環境変数 MAX_UPLOAD_SIZE_MB で設定可能、デフォルト10MB）
+_MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "10"))
+_MAX_UPLOAD_SIZE_BYTES = _MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 
 @router.post("/documents/upload", response_model=DocumentInfo)
@@ -50,6 +55,14 @@ async def upload_document(
 
     # ファイル読み込み
     content = await file.read()
+
+    # ファイルサイズチェック
+    if len(content) > _MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"ファイルサイズが上限({_MAX_UPLOAD_SIZE_MB}MB)を超えています",
+        )
+
     text = content.decode("utf-8", errors="ignore")
 
     if not text.strip():

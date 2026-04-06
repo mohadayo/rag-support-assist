@@ -1,17 +1,50 @@
 """テキストのチャンク化処理"""
 
+import os
 
-def chunk_text(text: str, chunk_size: int = 500, overlap: int = 100) -> list[str]:
+
+def _get_chunk_size() -> int:
+    """環境変数 CHUNK_SIZE からチャンクサイズを取得する（デフォルト: 500）"""
+    try:
+        value = int(os.getenv("CHUNK_SIZE", "500"))
+        if value < 50:
+            return 50
+        return value
+    except (ValueError, TypeError):
+        return 500
+
+
+def _get_chunk_overlap() -> int:
+    """環境変数 CHUNK_OVERLAP からオーバーラップサイズを取得する（デフォルト: 100）"""
+    try:
+        value = int(os.getenv("CHUNK_OVERLAP", "100"))
+        if value < 0:
+            return 0
+        return value
+    except (ValueError, TypeError):
+        return 100
+
+
+def chunk_text(
+    text: str,
+    chunk_size: int | None = None,
+    overlap: int | None = None,
+) -> list[str]:
     """テキストを指定サイズのチャンクに分割する。
 
     Args:
         text: 分割対象のテキスト
-        chunk_size: チャンクの最大文字数
-        overlap: チャンク間のオーバーラップ文字数
+        chunk_size: チャンクの最大文字数。省略時は環境変数 CHUNK_SIZE を使用（デフォルト: 500）
+        overlap: チャンク間のオーバーラップ文字数。省略時は環境変数 CHUNK_OVERLAP を使用（デフォルト: 100）
 
     Returns:
         チャンクのリスト
     """
+    if chunk_size is None:
+        chunk_size = _get_chunk_size()
+    if overlap is None:
+        overlap = _get_chunk_overlap()
+
     if not text.strip():
         return []
 

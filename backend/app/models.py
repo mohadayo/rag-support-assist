@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 Tone = Literal["polite", "concise", "standard"]
 
@@ -11,6 +11,15 @@ class QueryRequest(BaseModel):
     """問い合わせリクエスト"""
     query: str
     tone: Tone = "standard"
+
+    @field_validator("query")
+    @classmethod
+    def query_must_not_be_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("問い合わせ文を入力してください")
+        if len(v) > 5000:
+            raise ValueError("問い合わせ文は5000文字以内で入力してください")
+        return v.strip()
 
 
 class SourceDocument(BaseModel):
