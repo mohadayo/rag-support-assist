@@ -89,5 +89,5 @@ def _split_sentences(text: str) -> list[str]:
     """日本語・英語の文を分割する"""
     import re
     # 。！？!? や改行で分割（区切り文字は保持）
-    parts = re.split(r'(?<=[。！？!?\n])', text)
+    parts = re.split(r'(?<=[。.！？!?\n])', text)
     return [p for p in parts if p.strip()]
