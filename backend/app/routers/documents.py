@@ -15,9 +15,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["documents"])
 
-# アップロード日時を保持する簡易ストア（MVPではインメモリ）
-_upload_times: dict[str, str] = {}
-
 # ファイルサイズ上限（環境変数 MAX_UPLOAD_SIZE_MB で設定可能、デフォルト10MB）
 _MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "10"))
 _MAX_UPLOAD_SIZE_BYTES = _MAX_UPLOAD_SIZE_MB * 1024 * 1024
@@ -81,7 +78,6 @@ async def upload_document(
     )
 
     uploaded_at = datetime.now(timezone.utc).isoformat()
-    _upload_times[doc_id] = uploaded_at
 
     logger.info(
         "ドキュメントアップロード完了: doc_id=%s, filename=%s, chunks=%d",
@@ -107,7 +103,7 @@ async def list_documents():
             name=s["name"],
             category=s["category"],
             chunk_count=s["chunk_count"],
-            uploaded_at=_upload_times.get(s["id"], ""),
+            uploaded_at=s.get("uploaded_at", ""),
         )
         for s in stats
     ]
@@ -121,5 +117,4 @@ async def remove_document(doc_id: str):
     deleted = delete_document(doc_id)
     if deleted == 0:
         raise HTTPException(status_code=404, detail="ドキュメントが見つかりません")
-    _upload_times.pop(doc_id, None)
     return {"deleted_chunks": deleted, "document_id": doc_id}
