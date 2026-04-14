@@ -69,6 +69,10 @@ def chunk_text(
                     temp = temp[-overlap:] + sentence if overlap > 0 else sentence
                 else:
                     temp += sentence
+                # 1文だけでchunk_sizeを超える場合は文字境界で強制分割
+                while len(temp) > chunk_size:
+                    chunks.append(temp[:chunk_size].strip())
+                    temp = temp[chunk_size - overlap:] if overlap > 0 else temp[chunk_size:]
             if temp.strip():
                 chunks.append(temp.strip())
         elif len(current_chunk) + len(para) + 1 > chunk_size:
