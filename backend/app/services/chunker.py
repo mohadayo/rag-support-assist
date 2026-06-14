@@ -70,9 +70,11 @@ def chunk_text(
                 else:
                     temp += sentence
                 # 単一の文がchunk_sizeを超える場合は文字境界で強制分割する
+                # overlap >= chunk_size のとき step=0 になると無限ループするため max(1, ...) で前進を保証する
                 while len(temp) > chunk_size:
                     chunks.append(temp[:chunk_size].strip())
-                    temp = temp[chunk_size - overlap:] if overlap > 0 else temp[chunk_size:]
+                    step = max(1, chunk_size - overlap)
+                    temp = temp[step:]
             if temp.strip():
                 chunks.append(temp.strip())
         elif len(current_chunk) + len(para) + 1 > chunk_size:
