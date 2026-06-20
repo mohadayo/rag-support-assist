@@ -25,7 +25,7 @@
 ```
 [ブラウザ] → [Next.js (port 3000)] → [FastAPI (port 8000)] → [OpenAI API]
                                             ↓
-                                     [ChromaDB (組み込み)]
+                                  [PostgreSQL 16 + pgvector]
 ```
 
 ## 技術スタック
@@ -33,9 +33,10 @@
 | レイヤー | 技術 |
 |---------|------|
 | フロントエンド | Next.js 15, React 19, Tailwind CSS 4 |
-| バックエンド | Python, FastAPI |
-| ベクトルDB | ChromaDB (PersistentClient) |
+| バックエンド | Python 3.11, FastAPI |
+| ベクトルDB | PostgreSQL 16 + pgvector（psycopg2 経由） |
 | LLM / Embedding | OpenAI API (gpt-4o-mini / text-embedding-3-small) |
+| コンテナ | Docker Compose |
 
 ## 画面一覧
 
@@ -58,7 +59,7 @@ rag-support-assist/
 │   │   └── services/
 │   │       ├── chunker.py       # テキストチャンク化
 │   │       ├── embeddings.py    # Embedding生成
-│   │       ├── vectorstore.py   # ChromaDB操作
+│   │       ├── vectorstore.py   # PostgreSQL/pgvector操作
 │   │       └── rag.py           # RAG回答生成
 │   ├── requirements.txt
 │   └── .env.example
@@ -108,9 +109,33 @@ GET    /api/health             # ヘルスチェック
 
 - Python 3.11+
 - Node.js 18+
+- Docker & Docker Compose（PostgreSQL/pgvector の起動に使用）
 - OpenAI APIキー
 
-### 1. バックエンド起動
+### 1. Docker Compose で全サービスを起動（推奨）
+
+```bash
+# リポジトリルートで実行
+cp .env.example .env 2>/dev/null || true
+# .env を編集して OPENAI_API_KEY を設定
+
+docker compose up --build
+```
+
+アクセス先:
+- フロントエンド: http://localhost:3000
+- バックエンド API: http://localhost:8000
+
+### 2. 個別起動（開発時）
+
+#### 2-1. PostgreSQL + pgvector を起動
+
+```bash
+# PostgreSQL コンテナのみ起動
+docker compose up postgres -d
+```
+
+#### 2-2. バックエンド起動
 
 ```bash
 cd backend
@@ -124,13 +149,15 @@ pip install -r requirements.txt
 
 # 環境変数設定
 cp .env.example .env
-# .env を編集して OPENAI_API_KEY を設定
+# .env を編集して以下を設定:
+#   OPENAI_API_KEY=sk-...
+#   DATABASE_URL=postgres://user:password@localhost:5432/rag_support?sslmode=disable
 
-# サーバー起動
+# サーバー起動（起動時に DB マイグレーションが自動実行されます）
 uvicorn app.main:app --reload --port 8000
 ```
 
-### 2. フロントエンド起動
+#### 2-3. フロントエンド起動
 
 ```bash
 cd frontend
