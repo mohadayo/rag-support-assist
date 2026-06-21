@@ -2,10 +2,14 @@
 
 import json
 import logging
+import os
 
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
+
+# 使用するLLMモデル名。環境変数 RAG_MODEL で変更可能（デフォルト: gpt-4o-mini）。
+RAG_MODEL = os.getenv("RAG_MODEL", "gpt-4o-mini")
 
 _client: OpenAI | None = None
 
@@ -90,7 +94,7 @@ def generate_answer(
     logger.info("回答生成リクエスト: tone=%s, contexts=%d件", tone, len(contexts))
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=RAG_MODEL,
         messages=messages,
         temperature=0.3,
         max_tokens=1500,
@@ -113,7 +117,7 @@ def _check_escalation(
     """エスカレーション要否を判定する"""
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=RAG_MODEL,
             messages=[
                 {"role": "system", "content": ESCALATION_CHECK_PROMPT},
                 {

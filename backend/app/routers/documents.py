@@ -15,8 +15,22 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["documents"])
 
+
+def _parse_max_upload_size_mb() -> int:
+    raw = os.getenv("MAX_UPLOAD_SIZE_MB", "10")
+    try:
+        value = int(raw)
+    except (ValueError, TypeError):
+        logger.warning("Invalid MAX_UPLOAD_SIZE_MB=%r, falling back to 10", raw)
+        return 10
+    if value <= 0:
+        logger.warning("MAX_UPLOAD_SIZE_MB=%r must be positive, falling back to 10", raw)
+        return 10
+    return value
+
+
 # ファイルサイズ上限（環境変数 MAX_UPLOAD_SIZE_MB で設定可能、デフォルト10MB）
-_MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "10"))
+_MAX_UPLOAD_SIZE_MB = _parse_max_upload_size_mb()
 _MAX_UPLOAD_SIZE_BYTES = _MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 
