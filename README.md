@@ -103,6 +103,11 @@ DELETE /api/documents/{doc_id} # 文書削除
 GET    /api/health             # ヘルスチェック
 ```
 
+## 設定 (環境変数)
+
+バックエンドの環境変数一覧・デフォルト値・使い方は [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) を参照してください。
+サンプル設定は [`backend/.env.example`](backend/.env.example) にあります。
+
 ## ローカル起動方法
 
 ### 前提条件
@@ -152,6 +157,7 @@ cp .env.example .env
 # .env を編集して以下を設定:
 #   OPENAI_API_KEY=sk-...
 #   DATABASE_URL=postgres://user:password@localhost:5432/rag_support?sslmode=disable
+# 設定可能な全環境変数は docs/CONFIGURATION.md を参照
 
 # サーバー起動（起動時に DB マイグレーションが自動実行されます）
 uvicorn app.main:app --reload --port 8000
