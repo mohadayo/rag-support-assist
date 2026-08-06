@@ -1,0 +1,5 @@
+# asdf / mise 向けのツールチェインバージョン固定。
+# backend は CI (.github/workflows/ci.yml) に合わせて Python 3.11。
+# frontend は Next.js 16 の要件に合わせて Node.js 20。
+python 3.11
+nodejs 20
