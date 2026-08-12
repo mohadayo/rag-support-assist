@@ -11,6 +11,7 @@ load_dotenv()
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .routers import query, documents
@@ -66,10 +67,17 @@ app.include_router(documents.router)
 
 @app.get("/api/health")
 async def health():
-    """ヘルスチェック（DB接続確認付き）"""
+    """ヘルスチェック（DB接続確認付き）
+
+    DB 接続に失敗した場合は HTTP 503 を返し、LB や監視ツールが
+    ステータスコードで異常を検出できるようにする。
+    """
     try:
         doc_count = get_chunk_count()
         return {"status": "ok", "vector_db": "connected", "document_chunks": doc_count}
     except Exception:
         logger.exception("データベース接続エラー")
-        return {"status": "degraded", "vector_db": "disconnected"}
+        return JSONResponse(
+            status_code=503,
+            content={"status": "degraded", "vector_db": "disconnected"},
+        )
