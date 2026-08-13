@@ -1,0 +1,27 @@
+[tool.ruff]
+# ruff の対象となる Python バージョン。プロジェクト全体の .python-version と一致させる。
+target-version = "py311"
+
+# 1 行あたりの最大文字数（将来 E501 を有効にした際に効く）。
+line-length = 100
+
+# 検査対象ディレクトリ。
+src = ["app", "tests"]
+
+# 除外パス。
+exclude = [
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+]
+
+[tool.ruff.lint]
+# 初期導入では影響範囲を最小に抑えるため pyflakes 相当（未使用 import・未定義名など
+# 明確な実バグを検出するルール）のみを有効化する。後続 PR で E / W / I / B などを
+# 段階的に追加していく想定。
+select = ["F"]
+
+# 現時点で個別に無視したいルールは無い。
+ignore = []

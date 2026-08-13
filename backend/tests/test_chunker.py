@@ -1,7 +1,5 @@
 """chunker.py のユニットテスト"""
 
-import pytest
-
 from app.services.chunker import chunk_text, _split_sentences
 
 

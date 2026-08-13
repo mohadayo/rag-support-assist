@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.models import QueryRequest, SourceDocument, QueryResponse, DocumentInfo, DocumentListResponse
+from app.models import QueryRequest, SourceDocument, DocumentInfo
 
 
 class TestQueryRequest:
