@@ -155,7 +155,10 @@ class TestGetHealth:
     def test_DB異常_degradedを返す(self, client):
         with patch("app.main.get_chunk_count", side_effect=Exception("DB接続失敗")):
             resp = client.get("/api/health")
-        assert resp.status_code == 200
+        # `app/main.py` の health エンドポイントは DB 接続失敗時に
+        # LB / 監視ツールが検出できるよう HTTP 503 を返す。
+        # 旧テストは 200 を期待していたが実装と整合しない（回帰失敗）ため 503 に修正。
+        assert resp.status_code == 503
         body = resp.json()
         assert body["status"] == "degraded"
         assert body["vector_db"] == "disconnected"
