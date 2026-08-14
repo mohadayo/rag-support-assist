@@ -1,6 +1,12 @@
 """テキストのチャンク化処理"""
 
 import os
+import re
+
+# 文の区切り文字（日本語の `。！？`、英語の `.!?`、改行）。区切り文字は保持する。
+# module ロード時に一度だけコンパイルし、`_split_sentences` の呼び出しごとの
+# 再コンパイルを避ける。
+_SENTENCE_SPLIT_PATTERN = re.compile(r"(?<=[。.！？!?\n])")
 
 
 def _get_chunk_size() -> int:
@@ -23,6 +29,18 @@ def _get_chunk_overlap() -> int:
         return value
     except (ValueError, TypeError):
         return 100
+
+
+def _hard_split(text: str, chunk_size: int) -> list[str]:
+    """デリミタが無いテキストを固定長で強制分割する。
+
+    `_split_sentences` が「区切り文字が無い」と判定した長い連続文字列
+    （例: 大量の連続する非区切り文字、URL、Base64 文字列など）は、
+    そのままだと `chunk_text` 側で 1 チャンクにまとめられ、`chunk_size`
+    上限を超過してしまう。埋め込みモデルのトークン上限や下流のプロンプト
+    サイズを守るため、最終手段として文字単位で固定長分割する。
+    """
+    return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
 
 
 def chunk_text(
@@ -63,6 +81,18 @@ def chunk_text(
             sentences = _split_sentences(para)
             temp = ""
             for sentence in sentences:
+                # 単一文が chunk_size を超える場合は固定長で強制分割する。
+                # 区切り文字を持たない連続文字列（例: URL、長い識別子、Base64）が
+                # そのまま 1 チャンクにまとめられて `chunk_size` 上限を突破する
+                # 回帰を防ぐための保険。
+                if len(sentence) > chunk_size:
+                    if temp.strip():
+                        chunks.append(temp.strip())
+                        temp = ""
+                    for piece in _hard_split(sentence, chunk_size):
+                        if piece.strip():
+                            chunks.append(piece.strip())
+                    continue
                 if len(temp) + len(sentence) > chunk_size and temp:
                     chunks.append(temp.strip())
                     # オーバーラップ: 末尾部分を保持
@@ -87,7 +117,5 @@ def chunk_text(
 
 def _split_sentences(text: str) -> list[str]:
     """日本語・英語の文を分割する"""
-    import re
-    # 。.！？!? や改行で分割（区切り文字は保持）
-    parts = re.split(r'(?<=[。.！？!?\n])', text)
+    parts = _SENTENCE_SPLIT_PATTERN.split(text)
     return [p for p in parts if p.strip()]
