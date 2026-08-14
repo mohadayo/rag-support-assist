@@ -1,6 +1,12 @@
 """chunker.py のユニットテスト"""
 
-from app.services.chunker import chunk_text, _split_sentences
+from app.services.chunker import (
+    _get_chunk_overlap,
+    _get_chunk_size,
+    _hard_split,
+    _split_sentences,
+    chunk_text,
+)
 
 
 class TestChunkText:
@@ -103,3 +109,106 @@ class TestSplitSentences:
         sentences = _split_sentences(text)
         assert len(sentences) == 1
         assert sentences[0] == text
+
+
+class TestChunkSizeExceededByLongSentence:
+    """`chunk_size` を超える単一文の強制分割に関する回帰テスト。
+
+    区切り文字を持たない長い連続文字列（URL、識別子、Base64 等）が
+    そのまま 1 チャンクにまとめられていた既存の不具合を防ぐ。
+    """
+
+    def test_long_no_delimiter_text_splits_into_multiple_chunks(self):
+        """デリミタ無しの長文が chunk_size に応じて複数チャンクに分割される。"""
+        text = "a" * 1000
+        chunks_small = chunk_text(text, chunk_size=100, overlap=0)
+        chunks_large = chunk_text(text, chunk_size=500, overlap=0)
+        assert len(chunks_small) > len(chunks_large)
+        assert len(chunks_small) == 10
+        assert len(chunks_large) == 2
+
+    def test_chunk_size_upper_bound_is_enforced(self):
+        """各チャンクの長さが chunk_size を超えない。"""
+        text = "x" * 1234
+        chunks = chunk_text(text, chunk_size=100, overlap=0)
+        for chunk in chunks:
+            assert len(chunk) <= 100
+
+    def test_long_sentence_within_paragraph_is_split(self):
+        """段落末尾に区切り文字が無い長文でも chunk_size を守って分割される。"""
+        text = "b" * 800
+        chunks = chunk_text(text, chunk_size=200, overlap=0)
+        assert len(chunks) == 4
+        assert all(chunk == "b" * 200 for chunk in chunks)
+
+
+class TestHardSplit:
+    """`_hard_split` の挙動テスト。"""
+
+    def test_returns_empty_list_for_empty_text(self):
+        assert _hard_split("", 10) == []
+
+    def test_splits_into_fixed_length_pieces(self):
+        assert _hard_split("abcdefghij", 3) == ["abc", "def", "ghi", "j"]
+
+    def test_returns_single_piece_when_shorter_than_chunk_size(self):
+        assert _hard_split("abc", 10) == ["abc"]
+
+
+class TestGetChunkSize:
+    """`_get_chunk_size` の環境変数解釈テスト。"""
+
+    def test_default_when_unset(self, monkeypatch):
+        monkeypatch.delenv("CHUNK_SIZE", raising=False)
+        assert _get_chunk_size() == 500
+
+    def test_reads_from_env(self, monkeypatch):
+        monkeypatch.setenv("CHUNK_SIZE", "1000")
+        assert _get_chunk_size() == 1000
+
+    def test_below_minimum_clamped_to_50(self, monkeypatch):
+        """50 未満の値は 50 に丸める。"""
+        monkeypatch.setenv("CHUNK_SIZE", "10")
+        assert _get_chunk_size() == 50
+
+    def test_zero_clamped_to_50(self, monkeypatch):
+        monkeypatch.setenv("CHUNK_SIZE", "0")
+        assert _get_chunk_size() == 50
+
+    def test_invalid_string_falls_back_to_default(self, monkeypatch):
+        """整数として解釈できない値は既定値 500 にフォールバックする。"""
+        monkeypatch.setenv("CHUNK_SIZE", "not-a-number")
+        assert _get_chunk_size() == 500
+
+    def test_empty_string_falls_back_to_default(self, monkeypatch):
+        monkeypatch.setenv("CHUNK_SIZE", "")
+        assert _get_chunk_size() == 500
+
+
+class TestGetChunkOverlap:
+    """`_get_chunk_overlap` の環境変数解釈テスト。"""
+
+    def test_default_when_unset(self, monkeypatch):
+        monkeypatch.delenv("CHUNK_OVERLAP", raising=False)
+        assert _get_chunk_overlap() == 100
+
+    def test_reads_from_env(self, monkeypatch):
+        monkeypatch.setenv("CHUNK_OVERLAP", "50")
+        assert _get_chunk_overlap() == 50
+
+    def test_zero_is_allowed(self, monkeypatch):
+        monkeypatch.setenv("CHUNK_OVERLAP", "0")
+        assert _get_chunk_overlap() == 0
+
+    def test_negative_clamped_to_zero(self, monkeypatch):
+        """負値は 0 に丸める。"""
+        monkeypatch.setenv("CHUNK_OVERLAP", "-10")
+        assert _get_chunk_overlap() == 0
+
+    def test_invalid_string_falls_back_to_default(self, monkeypatch):
+        monkeypatch.setenv("CHUNK_OVERLAP", "abc")
+        assert _get_chunk_overlap() == 100
+
+    def test_empty_string_falls_back_to_default(self, monkeypatch):
+        monkeypatch.setenv("CHUNK_OVERLAP", "")
+        assert _get_chunk_overlap() == 100
