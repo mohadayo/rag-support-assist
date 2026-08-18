@@ -1,0 +1,33 @@
+# CODEOWNERS
+#
+# GitHub は PR 作成時に、変更されたパスに対応するオーナーへ
+# 自動的にレビューをリクエストします。
+# 詳細: https://docs.github.com/ja/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+#
+# パターンは後に書かれたものが優先されます（最終マッチ勝ち）。
+
+# デフォルトオーナー（明示ルールに一致しないすべてのパス）
+*                       @mohadayo
+
+# バックエンド（Python / FastAPI）
+/backend/               @mohadayo
+
+# フロントエンド（Next.js）
+/frontend/              @mohadayo
+
+# サンプルデータ
+/sample_data/           @mohadayo
+
+# ドキュメント
+/docs/                  @mohadayo
+/README.md              @mohadayo
+/CHANGELOG.md           @mohadayo
+/CODE_OF_CONDUCT.md     @mohadayo
+
+# CI / リポジトリ設定（ワークフロー・テンプレート・Dependabot 設定など）
+/.github/               @mohadayo
+
+# コンテナ／実行環境設定
+/docker-compose.yml     @mohadayo
+/.tool-versions         @mohadayo
+/.gitignore             @mohadayo
