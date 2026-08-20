@@ -1,0 +1,39 @@
+# --- 秘密情報・環境変数 ---
+# .env.local は必ずイメージに含めない（コンテナ実行時に環境変数で注入）
+.env
+.env.*
+!.env.local.example
+
+# --- Node 依存関係 / ビルド成果物 ---
+# Dockerfile 内で npm install / npm run build を実行するため、ホスト側成果物は除外
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# --- ログ ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- テスト / カバレッジ ---
+coverage/
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# --- Git / CI ---
+.git/
+.gitignore
+.github/
+
+# --- Docker 関連メタ ---
+Dockerfile
+.dockerignore
+
+# --- README（コンテナ内では不要） ---
+README.md
