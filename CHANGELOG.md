@@ -9,7 +9,8 @@
 
 ### Added
 
-- （次回リリースで追加する機能をここに記載）
+- コントリビュートガイド `CONTRIBUTING.md` を追加。ブランチ運用・Conventional
+  Commits・CI と一致するローカル検査コマンド・PR / Issue テンプレートの利用方法を明文化。
 
 ### Changed
 
