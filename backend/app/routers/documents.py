@@ -33,6 +33,37 @@ def _parse_max_upload_size_mb() -> int:
 _MAX_UPLOAD_SIZE_MB = _parse_max_upload_size_mb()
 _MAX_UPLOAD_SIZE_BYTES = _MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
+# ストリーミング読み込み時の1回あたりの読み込みサイズ（1MB）
+_READ_CHUNK_SIZE = 1024 * 1024
+
+
+async def _read_file_with_limit(file: UploadFile, max_bytes: int, max_mb: int) -> bytes:
+    """アップロードファイルをチャンク単位で読み込み、上限超過時に早期中断する。
+
+    `await file.read()` で一度に全体を読み込んでからサイズを検査すると、
+    上限チェックは読み込みが完了した後にしか機能しない。そのため、
+    MAX_UPLOAD_SIZE_MB による上限設定があっても、悪意あるクライアントが
+    巨大なファイル（数GB等）を送信した場合にサーバー側のメモリを
+    圧迫してしまう（DoS の原因になりうる）。
+
+    本関数は一定サイズ（`_READ_CHUNK_SIZE`）ずつ読み込み、累計サイズが
+    上限を超えた時点で残りを読み切る前に即座に 413 を送出する。
+    """
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(_READ_CHUNK_SIZE)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"ファイルサイズが上限({max_mb}MB)を超えています",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
 
 @router.post("/documents/upload", response_model=DocumentInfo)
 async def upload_document(
@@ -64,15 +95,8 @@ async def upload_document(
 
     logger.info("ドキュメントアップロード開始: filename=%s, category=%s", file.filename, category)
 
-    # ファイル読み込み
-    content = await file.read()
-
-    # ファイルサイズチェック
-    if len(content) > _MAX_UPLOAD_SIZE_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=f"ファイルサイズが上限({_MAX_UPLOAD_SIZE_MB}MB)を超えています",
-        )
+    # ファイル読み込み（チャンク単位・上限超過時は即座に中断）
+    content = await _read_file_with_limit(file, _MAX_UPLOAD_SIZE_BYTES, _MAX_UPLOAD_SIZE_MB)
 
     text = content.decode("utf-8", errors="ignore")
 
