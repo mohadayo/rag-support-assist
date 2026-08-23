@@ -98,6 +98,16 @@ class TestUploadDocument:
         assert resp.status_code == 413
         assert "上限" in resp.json()["detail"]
 
+    def test_413_チャンクサイズ境界をまたぐ巨大ファイル(self, client):
+        """_READ_CHUNK_SIZE (1MB) の倍数を超える大きさのファイルでも
+        ストリーミング読み込みの範囲内で正しく413を返せることを確認する。"""
+        big_content = b"a" * (3 * 1024 * 1024 + 100)
+        with patch("app.routers.documents._MAX_UPLOAD_SIZE_BYTES", 2 * 1024 * 1024), \
+             patch("app.routers.documents._MAX_UPLOAD_SIZE_MB", 2):
+            resp = _upload(client, big_content, "huge.txt", "faq")
+        assert resp.status_code == 413
+        assert "2MB" in resp.json()["detail"]
+
     def test_400_拡張子なしファイル名(self, client):
         resp = _upload(client, b"content", "noext", "faq")
         assert resp.status_code == 400
