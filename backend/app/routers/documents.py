@@ -33,6 +33,34 @@ def _parse_max_upload_size_mb() -> int:
 _MAX_UPLOAD_SIZE_MB = _parse_max_upload_size_mb()
 _MAX_UPLOAD_SIZE_BYTES = _MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
+# ストリーミング読み込みの 1 回あたりバッファサイズ（1MB）。
+# 上限を超えた瞬間に検出できる粒度を保ちつつ、per-chunk のオーバーヘッドを抑える。
+_UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
+
+
+async def _read_upload_with_size_limit(file: UploadFile, max_bytes: int) -> bytes:
+    """UploadFile をチャンク単位でストリーミング読み込みし、上限超過時に即座に打ち切る。
+
+    従来の `await file.read()` は引数なしでファイル全体を一度に読み込むため、
+    上限チェックが実行される時点で既に全体がメモリ（またはスプールファイル読出し）
+    に載っており、`MAX_UPLOAD_SIZE_MB` の意図に反して DoS ベクタとして機能して
+    しまう。本ヘルパーは累計サイズが上限を超えた瞬間に残りを読まずに例外を
+    送出することで、`MAX_UPLOAD_SIZE_MB` の意図通りに読み込み量そのものを
+    制限する。
+    """
+    buffer = bytearray()
+    while True:
+        chunk = await file.read(_UPLOAD_READ_CHUNK_BYTES)
+        if not chunk:
+            break
+        buffer.extend(chunk)
+        if len(buffer) > max_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"ファイルサイズが上限({_MAX_UPLOAD_SIZE_MB}MB)を超えています",
+            )
+    return bytes(buffer)
+
 
 @router.post("/documents/upload", response_model=DocumentInfo)
 async def upload_document(
@@ -64,15 +92,9 @@ async def upload_document(
 
     logger.info("ドキュメントアップロード開始: filename=%s, category=%s", file.filename, category)
 
-    # ファイル読み込み
-    content = await file.read()
-
-    # ファイルサイズチェック
-    if len(content) > _MAX_UPLOAD_SIZE_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=f"ファイルサイズが上限({_MAX_UPLOAD_SIZE_MB}MB)を超えています",
-        )
+    # ストリーミング読み込み。上限を超えた瞬間に 413 を送出し、残りを読まないため
+    # `MAX_UPLOAD_SIZE_MB` を超える巨大ファイルが送られてきてもメモリ使用量を制限できる。
+    content = await _read_upload_with_size_limit(file, _MAX_UPLOAD_SIZE_BYTES)
 
     text = content.decode("utf-8", errors="ignore")
 

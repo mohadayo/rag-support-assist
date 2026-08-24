@@ -98,6 +98,18 @@ class TestUploadDocument:
         assert resp.status_code == 413
         assert "上限" in resp.json()["detail"]
 
+    def test_413_ストリーミング読み込みでchunk_textまで到達しない(self, client):
+        """上限を超えたらチャンク化・ベクトル登録に到達せず 413 で早期終了することを確認"""
+        big_content = b"a" * (1 * 1024 * 1024 + 1)
+        with patch("app.routers.documents._MAX_UPLOAD_SIZE_BYTES", 1 * 1024 * 1024), \
+             patch("app.routers.documents._MAX_UPLOAD_SIZE_MB", 1), \
+             patch("app.routers.documents.chunk_text") as mock_chunk, \
+             patch("app.routers.documents.add_documents") as mock_add:
+            resp = _upload(client, big_content, "big.txt", "faq")
+        assert resp.status_code == 413
+        assert mock_chunk.call_count == 0
+        assert mock_add.call_count == 0
+
     def test_400_拡張子なしファイル名(self, client):
         resp = _upload(client, b"content", "noext", "faq")
         assert resp.status_code == 400
