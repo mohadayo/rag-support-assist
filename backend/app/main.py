@@ -59,6 +59,43 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         return response
 
 
+# 全応答に付与するセキュリティレスポンスヘッダ。
+# JSON API サーバとして外部依存 (secure-headers 等) を追加せずに、
+# starlette 標準の BaseHTTPMiddleware で以下を付ける:
+#
+# - `X-Content-Type-Options: nosniff` … JSON エンドポイントを別 MIME として
+#   解釈させる MIME sniffing 攻撃を抑止。
+# - `X-Frame-Options: DENY` … API を `<iframe>` に埋め込ませない。
+#   JSON API はフレーム表示を意図しないため常時拒否 (clickjacking 対策)。
+# - `Referrer-Policy: no-referrer` … 内部 URL やクエリ文字列がリンク先の
+#   Referrer ヘッダとして外部に漏れないよう抑止。
+#
+# 既に同名ヘッダが設定されているレスポンス (テストや将来の per-route
+# オーバーライド) は上書きしない — `setdefault` 相当の挙動を `headers.setdefault`
+# ではなく `if key not in` で明示する（starlette の `MutableHeaders` にも
+# `setdefault` はあるがコメント可読性のため展開）。
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+}
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        for key, value in _SECURITY_HEADERS.items():
+            if key not in response.headers:
+                response.headers[key] = value
+        return response
+
+
+# `add_middleware` は LIFO で外側から積まれるため、SecurityHeaders を先に
+# 追加すると、後から追加する RequestLogging より外側（応答経路の後段）に
+# 位置する。両者はどちらも `call_next` の応答オブジェクトを触るだけなので
+# 順序による副作用は無いが、ログには「セキュリティヘッダ付与後の最終応答」の
+# ステータスがそのまま出るため、順序をここで固定しておく。
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 
 app.include_router(query.router)
