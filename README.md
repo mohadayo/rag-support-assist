@@ -228,3 +228,14 @@ http://localhost:3000 にアクセスし、以下のような問い合わせを�
 - 監査ログ
 - SLA管理
 - オンプレミスLLM対応
+
+## ドキュメント
+
+開発・運用・障害対応時に参照するドキュメント一覧。
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — システム構成・データフロー・レイヤ責務のバードビュー
+- [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) — バックエンドの環境変数一覧・デフォルト値・チューニング指針
+- [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) — 障害切り分け・復旧手順（DB / 埋め込み / OpenAI API の症状別）
+- [`CHANGELOG.md`](CHANGELOG.md) — 変更履歴
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — コントリビュートガイド
+- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — コミュニティ規範
