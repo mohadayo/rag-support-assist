@@ -1,4 +1,5 @@
 """query ルーターのユニットテスト"""
+import logging
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -19,6 +20,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.routers.query import _parse_query_top_k
 
 
 @pytest.fixture
@@ -35,6 +37,43 @@ def _make_search_result(docs=None, metas=None, dists=None):
     metas = metas or [{"document_name": "faq.txt", "category": "faq"}]
     dists = dists or [0.1]
     return {"documents": [docs], "metadatas": [metas], "distances": [dists]}
+
+
+class TestParseQueryTopK:
+    def test_default_is_5(self, monkeypatch):
+        monkeypatch.delenv("QUERY_TOP_K", raising=False)
+        assert _parse_query_top_k() == 5
+
+    def test_valid_integer(self, monkeypatch):
+        monkeypatch.setenv("QUERY_TOP_K", "3")
+        assert _parse_query_top_k() == 3
+
+    def test_large_value(self, monkeypatch):
+        monkeypatch.setenv("QUERY_TOP_K", "20")
+        assert _parse_query_top_k() == 20
+
+    def test_invalid_string_falls_back_to_default(self, monkeypatch, caplog):
+        monkeypatch.setenv("QUERY_TOP_K", "abc")
+        with caplog.at_level(logging.WARNING, logger="app.routers.query"):
+            result = _parse_query_top_k()
+        assert result == 5
+        assert any("abc" in r.message for r in caplog.records)
+
+    def test_zero_falls_back_to_default(self, monkeypatch, caplog):
+        monkeypatch.setenv("QUERY_TOP_K", "0")
+        with caplog.at_level(logging.WARNING, logger="app.routers.query"):
+            result = _parse_query_top_k()
+        assert result == 5
+
+    def test_negative_falls_back_to_default(self, monkeypatch, caplog):
+        monkeypatch.setenv("QUERY_TOP_K", "-1")
+        with caplog.at_level(logging.WARNING, logger="app.routers.query"):
+            result = _parse_query_top_k()
+        assert result == 5
+
+    def test_float_string_falls_back_to_default(self, monkeypatch):
+        monkeypatch.setenv("QUERY_TOP_K", "2.5")
+        assert _parse_query_top_k() == 5
 
 
 class TestPostQuery:
@@ -103,6 +142,15 @@ class TestPostQuery:
             resp = client.post("/api/query", json={"query": "テスト"})
         assert resp.status_code == 200
         assert len(resp.json()["sources"]) == 3
+
+    def test_search呼び出しでQUERY_TOP_Kが渡される(self, client):
+        """`_QUERY_TOP_K`（環境変数 QUERY_TOP_K 由来）が search() の n_results に渡ること"""
+        with patch("app.routers.query.search", return_value=_make_search_result()) as mock_search, \
+             patch("app.routers.query._QUERY_TOP_K", 7), \
+             patch("app.routers.query.generate_answer", return_value=("回答", False, None)):
+            resp = client.post("/api/query", json={"query": "テスト"})
+        assert resp.status_code == 200
+        mock_search.assert_called_once_with("テスト", n_results=7)
 
     def test_422_空クエリ(self, client):
         resp = client.post("/api/query", json={"query": ""})

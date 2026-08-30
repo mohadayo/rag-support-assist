@@ -24,6 +24,7 @@ DATABASE_URL=postgres://user:password@localhost:5432/rag_support?sslmode=disable
 | `CORS_ORIGINS` | `http://localhost:3000` | カンマ区切り文字列 | FastAPI の CORS ミドルウェアで許可するオリジン。カンマ区切りで複数指定できます。 | `backend/app/main.py` |
 | `RAG_MODEL` | `gpt-4o-mini` | OpenAI Chat モデル名 | 回答生成 (`generate_answer`) とエスカレーション判定 (`_check_escalation`) の双方で共通利用します。 | `backend/app/services/rag.py` |
 | `MAX_UPLOAD_SIZE_MB` | `10` | 正の整数 (MB) | 文書アップロード API で許容するファイルサイズ上限。不正値 (負・0・非数値) 指定時はデフォルト値にフォールバックし警告ログを出力します。 | `backend/app/routers/documents.py` |
+| `QUERY_TOP_K` | `5` | 正の整数 | 問い合わせ API (`/api/query`) がベクトル検索で取得する上位件数。不正値 (負・0・非数値) 指定時はデフォルト値にフォールバックし警告ログを出力します。 | `backend/app/routers/query.py` |
 
 ### 挙動の詳細
 
@@ -34,6 +35,8 @@ DATABASE_URL=postgres://user:password@localhost:5432/rag_support?sslmode=disable
   `gpt-4o-mini` を含む OpenAI Chat モデル名を指定します。エスカレーション判定は `response_format={"type": "json_object"}` を利用するため、JSON モードをサポートするモデルを指定してください。
 - **`MAX_UPLOAD_SIZE_MB`**
   アプリ起動時に一度だけ解決され、実行中に環境変数を変更しても反映されません。変更する場合はプロセスを再起動してください。
+- **`QUERY_TOP_K`**
+  `MAX_UPLOAD_SIZE_MB` と同様、モジュールロード時に一度だけ解決されるため、変更する場合はプロセスを再起動してください。値を大きくすると回答生成に使う参照文書が増える一方、LLM への入力トークン数も増加します。
 
 ## デプロイ環境ごとの設定例
 

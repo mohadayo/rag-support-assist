@@ -1,6 +1,7 @@
 """問い合わせAPI"""
 
 import logging
+import os
 
 from fastapi import APIRouter, HTTPException
 from openai import OpenAIError
@@ -13,6 +14,28 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["query"])
 
+_DEFAULT_QUERY_TOP_K = 5
+
+
+def _parse_query_top_k() -> int:
+    """環境変数 QUERY_TOP_K からベクトル検索の取得件数を取得する（デフォルト: 5）"""
+    raw = os.getenv("QUERY_TOP_K", str(_DEFAULT_QUERY_TOP_K))
+    try:
+        value = int(raw)
+    except (ValueError, TypeError):
+        logger.warning("Invalid QUERY_TOP_K=%r, falling back to %d", raw, _DEFAULT_QUERY_TOP_K)
+        return _DEFAULT_QUERY_TOP_K
+    if value <= 0:
+        logger.warning(
+            "QUERY_TOP_K=%r must be positive, falling back to %d", raw, _DEFAULT_QUERY_TOP_K
+        )
+        return _DEFAULT_QUERY_TOP_K
+    return value
+
+
+# ベクトル検索で取得する上位件数（環境変数 QUERY_TOP_K で設定可能、デフォルト5）
+_QUERY_TOP_K = _parse_query_top_k()
+
 
 @router.post("/query", response_model=QueryResponse)
 async def handle_query(request: QueryRequest):
@@ -21,7 +44,7 @@ async def handle_query(request: QueryRequest):
 
     # ベクトル検索
     try:
-        results = search(request.query, n_results=5)
+        results = search(request.query, n_results=_QUERY_TOP_K)
     except Exception:
         logger.exception("ベクトル検索中にエラーが発生しました")
         raise HTTPException(
