@@ -77,6 +77,42 @@ class TestChunkText:
         chunks = chunk_text(text)
         assert isinstance(chunks, list)
 
+    def test_overlap_equal_to_chunk_size_is_clamped(self):
+        """overlap == chunk_size でも chunk が chunk_size を大きく超えない
+
+        `temp[-overlap:]` は overlap >= len(temp) のとき temp 全体を返す。
+        クランプが無いと「flush して次 chunk を開始する」経路が no-op になり
+        chunk が無制限に膨らむ。クランプにより chunk_size 前後に収まる。
+        """
+        text = "テスト。" * 200  # sentence 分割経路を通す
+        chunks = chunk_text(text, chunk_size=100, overlap=100)
+        assert len(chunks) > 1
+        for chunk in chunks:
+            # クランプ後の overlap は chunk_size // 2 = 50 なので、
+            # 概ね chunk_size + 1 sentence 程度 (「テスト。」= 4 文字) には収まる。
+            assert len(chunk) <= 200
+
+    def test_overlap_greater_than_chunk_size_is_clamped(self):
+        """overlap > chunk_size でも chunk が無制限に膨張しない"""
+        text = "テスト。" * 200
+        chunks = chunk_text(text, chunk_size=100, overlap=500)
+        assert len(chunks) > 1
+        for chunk in chunks:
+            assert len(chunk) <= 200
+
+    def test_overlap_greater_than_chunk_size_paragraph_path(self):
+        """段落経路でも overlap >= chunk_size がクランプされる"""
+        # `\n\n` で区切られる短い段落を多数用意し、段落結合経路 (elif) を通す。
+        paragraphs = ["段落テキスト" for _ in range(20)]
+        text = "\n\n".join(paragraphs)
+        chunks = chunk_text(text, chunk_size=30, overlap=30)
+        assert len(chunks) > 1
+        for chunk in chunks:
+            # クランプ後の overlap は 15 なので、境界時の chunk サイズは
+            # (前 chunk 末尾 15) + 改行 + 段落 (6 文字) ≒ 22 程度。
+            # 段落を 1 つ足した際にも 30 + 20 = 50 は超えない。
+            assert len(chunk) <= 60
+
 
 class TestSplitSentences:
     """_split_sentences 関数のテスト"""
