@@ -45,6 +45,16 @@ def chunk_text(
     if overlap is None:
         overlap = _get_chunk_overlap()
 
+    # `overlap` は chunk 境界の末尾を次 chunk の冒頭に持ち込む長さ。
+    # `overlap >= chunk_size` を許すと `temp[-overlap:]` / `current_chunk[-overlap:]`
+    # がバッファ全体を返し、「flush して新しい chunk を開始する」経路が事実上 no-op
+    # になる。結果として個々の chunk が chunk_size を無制限に超過し、下流の
+    # Embedding API のトークン上限超過や検索精度低下を招く。ここで安全側に
+    # クランプすることで overlap の意図（境界コンテキスト保持）を残しつつ、
+    # 各 chunk のサイズ上限を守る。
+    if overlap >= chunk_size:
+        overlap = max(0, chunk_size // 2)
+
     if not text.strip():
         return []
 
