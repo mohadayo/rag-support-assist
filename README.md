@@ -239,3 +239,4 @@ http://localhost:3000 にアクセスし、以下のような問い合わせを�
 - [`CHANGELOG.md`](CHANGELOG.md) — 変更履歴
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — コントリビュートガイド
 - [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — コミュニティ規範
+- [`SECURITY.md`](SECURITY.md) — 脆弱性報告手順（サポートチャネル・報告後のフロー）
