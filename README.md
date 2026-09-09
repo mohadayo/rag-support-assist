@@ -103,6 +103,8 @@ DELETE /api/documents/{doc_id} # 文書削除
 GET    /api/health             # ヘルスチェック
 ```
 
+全エンドポイントのリクエスト/レスポンススキーマ・ステータスコード・`curl` サンプルは [`docs/API.md`](docs/API.md) を参照してください。
+
 ## 設定 (環境変数)
 
 バックエンドの環境変数一覧・デフォルト値・使い方は [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) を参照してください。
@@ -233,6 +235,7 @@ http://localhost:3000 にアクセスし、以下のような問い合わせを�
 
 開発・運用・障害対応時に参照するドキュメント一覧。
 
+- [`docs/API.md`](docs/API.md) — バックエンド HTTP API リファレンス（エンドポイント別のスキーマ・ステータスコード・サンプル）
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — システム構成・データフロー・レイヤ責務のバードビュー
 - [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) — バックエンドの環境変数一覧・デフォルト値・チューニング指針
 - [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) — 障害切り分け・復旧手順（DB / 埋め込み / OpenAI API の症状別）
