@@ -239,6 +239,7 @@ http://localhost:3000 にアクセスし、以下のような問い合わせを�
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — システム構成・データフロー・レイヤ責務のバードビュー
 - [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) — バックエンドの環境変数一覧・デフォルト値・チューニング指針
 - [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) — 障害切り分け・復旧手順（DB / 埋め込み / OpenAI API の症状別）
+- [`docs/EVAL.md`](docs/EVAL.md) — RAG 品質評価ガイド（評価データセット作成・指標定義・回帰チェック手順）
 - [`CHANGELOG.md`](CHANGELOG.md) — 変更履歴
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — コントリビュートガイド
 - [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — コミュニティ規範
