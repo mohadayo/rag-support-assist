@@ -115,7 +115,7 @@ GET    /api/health             # ヘルスチェック
 ### 前提条件
 
 - Python 3.11+
-- Node.js 18+
+- Node.js 20+
 - Docker & Docker Compose（PostgreSQL/pgvector の起動に使用）
 - OpenAI APIキー
 
