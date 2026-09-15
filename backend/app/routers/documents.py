@@ -37,6 +37,58 @@ _MAX_UPLOAD_SIZE_BYTES = _MAX_UPLOAD_SIZE_MB * 1024 * 1024
 # 上限を超えた瞬間に検出できる粒度を保ちつつ、per-chunk のオーバーヘッドを抑える。
 _UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
 
+# アップロードされるファイル名の最大長。DB `documents.name` 列は TEXT で
+# 上限が無いため、ここで防御的に長さを制限する。POSIX のファイル名長 (NAME_MAX)
+# の慣例値である 255 を採用。
+_MAX_FILENAME_LENGTH = 255
+
+
+def _validate_filename(filename: str) -> None:
+    """アップロードファイル名を検証し、危険な値を弾く。
+
+    以下のケースを 400 で拒否する:
+
+    - 空文字・空白のみ (前段で `if not file.filename` を通っても、` ` 一文字などは
+      通過してしまうため basename 化後にもう一度チェック)
+    - パス区切り文字 (`/`, `\\`) を含む → パストラバーサル対策。現時点では
+      filename をファイルシステムパスとして直接使用していないが、DB の
+      `documents.name` 列やレスポンス、ログ、将来的なダウンロード API 等で
+      再利用されうるため、入り口で拒否しておく（多層防御）。
+    - NUL バイト・制御文字を含む → ログ改ざん / ヘッダー分割 / パス処理での
+      truncation 攻撃対策。
+    - `.` / `..` のみ → 相対パス扱いされうる特殊値。
+    - 255 文字を超える → DB 肥大化・ログ肥大化・攻撃者による資源消費対策。
+    """
+    if not filename or not filename.strip():
+        raise HTTPException(status_code=400, detail="ファイル名が必要です")
+
+    if len(filename) > _MAX_FILENAME_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"ファイル名は{_MAX_FILENAME_LENGTH}文字以内で指定してください",
+        )
+
+    if "/" in filename or "\\" in filename:
+        raise HTTPException(
+            status_code=400,
+            detail="ファイル名にパス区切り文字は使用できません",
+        )
+
+    # NUL バイトおよび C0 制御文字 (0x00-0x1F) と DEL (0x7F)。
+    # タブ・改行等を含めて全て禁止 — ファイル名として意味を持たず、
+    # ログ/レスポンスに混入すると副作用が大きい。
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in filename):
+        raise HTTPException(
+            status_code=400,
+            detail="ファイル名に制御文字は使用できません",
+        )
+
+    if filename in (".", ".."):
+        raise HTTPException(
+            status_code=400,
+            detail="ファイル名として '.' や '..' は使用できません",
+        )
+
 
 async def _read_upload_with_size_limit(file: UploadFile, max_bytes: int) -> bytes:
     """UploadFile をチャンク単位でストリーミング読み込みし、上限超過時に即座に打ち切る。
@@ -72,8 +124,9 @@ async def upload_document(
     対応形式: .txt, .md, .csv
     カテゴリ: faq, terms, manual, history
     """
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="ファイル名が必要です")
+    # ファイル名の入り口バリデーション。以降のログ出力・DB 登録より前に実行することで、
+    # 制御文字を含むファイル名でログ改ざんを試みる攻撃を早期に遮断する。
+    _validate_filename(file.filename or "")
 
     allowed_extensions = {".txt", ".md", ".csv"}
     ext = "." + file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
