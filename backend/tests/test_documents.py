@@ -17,6 +17,8 @@ _openai_mock.OpenAI = MagicMock
 from app.routers.documents import (  # noqa: E402
     _parse_max_upload_size_mb,
     _read_upload_with_size_limit,
+    _validate_filename,
+    _MAX_FILENAME_LENGTH,
 )
 
 
@@ -140,3 +142,90 @@ class TestReadUploadWithSizeLimit:
         with pytest.raises(HTTPException) as excinfo:
             _run(_read_upload_with_size_limit(upload, max_bytes=max_bytes))
         assert excinfo.value.status_code == 413
+
+
+class TestValidateFilename:
+    """`_validate_filename` の直接ユニットテスト。
+
+    HTTP レイヤ (httpx / python-multipart) は CR/LF/NUL/TAB 等の
+    制御文字をヘッダ解析段階で除去または拒否してしまうため、これらの
+    ケースは E2E では再現できない。バリデータの契約 (どの入力を弾くか) を
+    ここで直接検証しておくことで、将来別経路 (例えば S3 pre-signed URL の
+    key 由来のファイル名) で同関数を再利用したときの回帰も検出できる。
+    """
+
+    def test_正常系_通常のファイル名は許可される(self):
+        # 例外を送出しなければ OK
+        _validate_filename("faq.txt")
+        _validate_filename("readme.md")
+        _validate_filename("日本語ファイル.csv")
+
+    @pytest.mark.parametrize("filename", ["", " ", "   "])
+    def test_400_空文字_空白のみ(self, filename):
+        with pytest.raises(HTTPException) as excinfo:
+            _validate_filename(filename)
+        assert excinfo.value.status_code == 400
+        assert "ファイル名" in excinfo.value.detail
+
+    @pytest.mark.parametrize(
+        "filename",
+        [
+            "../etc/passwd.txt",
+            "..\\evil.txt",
+            "a/b/c.txt",
+            "sub\\evil.txt",
+            "/absolute/path.txt",
+            "\\windows\\evil.txt",
+        ],
+    )
+    def test_400_パス区切り文字を含む(self, filename):
+        """`/` または `\\` を含むファイル名は path traversal 対策で拒否。"""
+        with pytest.raises(HTTPException) as excinfo:
+            _validate_filename(filename)
+        assert excinfo.value.status_code == 400
+        assert "パス" in excinfo.value.detail
+
+    @pytest.mark.parametrize(
+        "filename",
+        [
+            "foo\x00bar.txt",   # NUL バイト
+            "foo\tbar.txt",     # TAB
+            "foo\nbar.txt",     # LF
+            "foo\rbar.txt",     # CR
+            "foo\x01bar.txt",   # C0 制御文字
+            "foo\x1fbar.txt",   # C0 制御文字境界値
+            "foo\x7fbar.txt",   # DEL
+        ],
+    )
+    def test_400_制御文字を含む(self, filename):
+        """NUL / C0 制御文字 (0x00-0x1F) / DEL (0x7F) を含むファイル名は拒否。
+
+        ログ改ざん・ヘッダー分割・パス処理の truncation 攻撃対策として、
+        FastAPI レイヤに到達する前に弾く。
+        """
+        with pytest.raises(HTTPException) as excinfo:
+            _validate_filename(filename)
+        assert excinfo.value.status_code == 400
+        assert "制御" in excinfo.value.detail
+
+    @pytest.mark.parametrize("filename", [".", ".."])
+    def test_400_ドット_ドットドット(self, filename):
+        """特殊な相対パス表現は拒否される。"""
+        with pytest.raises(HTTPException) as excinfo:
+            _validate_filename(filename)
+        assert excinfo.value.status_code == 400
+
+    def test_境界値_ちょうど255文字は許可(self):
+        # `_MAX_FILENAME_LENGTH` (255) ちょうどは通す
+        filename = "a" * (_MAX_FILENAME_LENGTH - 4) + ".txt"
+        assert len(filename) == _MAX_FILENAME_LENGTH
+        _validate_filename(filename)  # 例外を送出しないこと
+
+    def test_境界値_256文字は拒否(self):
+        filename = "a" * (_MAX_FILENAME_LENGTH - 3) + ".txt"
+        assert len(filename) == _MAX_FILENAME_LENGTH + 1
+        with pytest.raises(HTTPException) as excinfo:
+            _validate_filename(filename)
+        assert excinfo.value.status_code == 400
+        # 上限値をメッセージに含めていること
+        assert str(_MAX_FILENAME_LENGTH) in excinfo.value.detail
