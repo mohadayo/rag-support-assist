@@ -115,6 +115,81 @@ class TestUploadDocument:
         assert resp.status_code == 400
 
 
+class TestUploadFilenameValidation:
+    """ファイル名の入力バリデーション (path traversal / 制御文字 / 長さ) を検証する。
+
+    これらは `_validate_filename` で拡張子チェックより前に弾かれ、
+    `chunk_text` / `add_documents` に到達しないことを確認する
+    (制御文字混入によるログ改ざん・DB 肥大化・パストラバーサル対策)。
+    """
+
+    def test_400_パス区切り_スラッシュ(self, client):
+        with patch("app.routers.documents.chunk_text") as mock_chunk, \
+             patch("app.routers.documents.add_documents") as mock_add:
+            resp = _upload(client, b"content", "../etc/passwd.txt", "faq")
+        assert resp.status_code == 400
+        assert "パス" in resp.json()["detail"]
+        assert mock_chunk.call_count == 0
+        assert mock_add.call_count == 0
+
+    def test_400_パス区切り_バックスラッシュ(self, client):
+        # httpx はヘッダ値の CR/LF/NUL 混入を拒否するが、バックスラッシュは通す。
+        with patch("app.routers.documents.chunk_text") as mock_chunk, \
+             patch("app.routers.documents.add_documents") as mock_add:
+            resp = _upload(client, b"content", "sub\\evil.txt", "faq")
+        assert resp.status_code == 400
+        assert "パス" in resp.json()["detail"]
+        assert mock_chunk.call_count == 0
+        assert mock_add.call_count == 0
+
+    def test_400_パス区切り_深い階層(self, client):
+        resp = _upload(client, b"content", "a/b/c.txt", "faq")
+        assert resp.status_code == 400
+
+    def test_400_ドットのみ(self, client):
+        # `.` は拡張子判定ロジックの前に filename バリデーションで弾く。
+        resp = _upload(client, b"content", ".", "faq")
+        assert resp.status_code == 400
+
+    def test_400_ドットドット(self, client):
+        resp = _upload(client, b"content", "..", "faq")
+        assert resp.status_code == 400
+
+    def test_400_ファイル名が長すぎる(self, client):
+        long_name = "a" * 256 + ".txt"
+        with patch("app.routers.documents.chunk_text") as mock_chunk, \
+             patch("app.routers.documents.add_documents") as mock_add:
+            resp = _upload(client, b"content", long_name, "faq")
+        assert resp.status_code == 400
+        assert "255" in resp.json()["detail"] or "文字" in resp.json()["detail"]
+        assert mock_chunk.call_count == 0
+        assert mock_add.call_count == 0
+
+    def test_400_ファイル名_ちょうど256文字(self, client):
+        # 境界値: 256 文字は拒否される
+        long_name = "a" * 252 + ".txt"  # 256 chars total
+        resp = _upload(client, b"content", long_name, "faq")
+        assert resp.status_code == 400
+
+    def test_正常系_ファイル名_ちょうど255文字(self, client):
+        # 境界値: 255 文字は許可される
+        long_name = "a" * 251 + ".txt"  # 255 chars total
+        with patch("app.routers.documents.chunk_text", return_value=["c1"]), \
+             patch("app.routers.documents.add_documents", return_value=1):
+            resp = _upload(client, b"content", long_name, "faq")
+        assert resp.status_code == 200
+
+    def test_400_制御文字_DEL(self, client):
+        # DEL (0x7F) も制御文字として拒否される。
+        # 注: タブ・CR・LF・NUL は httpx / python-multipart のヘッダ処理層で
+        # 事前に除去されてしまうためエンドツーエンドでは検証できない。
+        # それらの網羅は `test_documents.py::TestValidateFilename` で
+        # `_validate_filename` を直接呼び出して検証している。
+        resp = _upload(client, b"content", "foo\x7fbar.txt", "faq")
+        assert resp.status_code == 400
+        assert "制御" in resp.json()["detail"]
+
+
 class TestListDocuments:
     def test_正常系_空一覧(self, client):
         with patch("app.routers.documents.get_document_stats", return_value=[]):
