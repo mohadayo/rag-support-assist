@@ -153,9 +153,15 @@ class TestGetHealth:
         assert body["document_chunks"] == 42
 
     def test_DB異常_degradedを返す(self, client):
+        """DB 接続に失敗した場合、`/api/health` は HTTP 503 を返すこと。
+
+        `app.main.health` は例外発生時に `JSONResponse(status_code=503, ...)` を
+        返す実装になっており、この期待値は `test_health.py` /
+        `test_security_headers.py` の対応するテストとも一致する。
+        """
         with patch("app.main.get_chunk_count", side_effect=Exception("DB接続失敗")):
             resp = client.get("/api/health")
-        assert resp.status_code == 200
+        assert resp.status_code == 503
         body = resp.json()
         assert body["status"] == "degraded"
         assert body["vector_db"] == "disconnected"
