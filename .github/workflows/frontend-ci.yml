@@ -1,0 +1,67 @@
+# フロントエンド (Next.js / TypeScript) の CI
+#
+# 目的:
+#   既存 `ci.yml` は backend (Python) のみを対象としており、`frontend/` 配下の
+#   TypeScript / Next.js コードは PR 時点で機械的に検証されていない。本ワークフローで
+#   フロントエンドの静的型検査 (`tsc --noEmit`) と production build (`next build`) を
+#   PR / push 時点で走らせ、型エラー・ビルドエラーの本流混入を防ぐ。
+#
+# 設計上のポイント:
+#   - `paths` で `frontend/**` の変更に絞る (backend のみの PR はランナー未消費)。
+#   - `frontend/package-lock.json` のハッシュで npm キャッシュを効かせる。
+#   - `.node-version` / `.nvmrc` で pin されている Node 版を使うため、
+#     ワークフロー側での version 直書きを避けて node-version-file で参照する。
+#   - `npm ci` → `tsc --noEmit` → `next build` の順に走らせ、型エラーは
+#     ビルド前に落とす (build も型検査を含むが、tsc は tests など build 対象外を
+#     カバーできるため冗長ではない)。
+#   - 権限は `contents: read` のみ、`concurrency` で多重実行を抑止。
+
+name: frontend-ci
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck-build:
+    name: typecheck + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
