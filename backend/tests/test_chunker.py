@@ -1,6 +1,14 @@
 """chunker.py のユニットテスト"""
 
-from app.services.chunker import chunk_text, _split_sentences
+import re
+
+from app.services import chunker
+from app.services.chunker import (
+    _get_chunk_overlap,
+    _get_chunk_size,
+    _split_sentences,
+    chunk_text,
+)
 
 
 class TestChunkText:
@@ -139,3 +147,99 @@ class TestSplitSentences:
         sentences = _split_sentences(text)
         assert len(sentences) == 1
         assert sentences[0] == text
+
+    def test_delimiter_is_retained_at_end_of_sentence(self):
+        """区切り文字 (。 . ！ ？ ! ?) は分割後も末尾に保持される"""
+        # 後読みアサーションで分割するため、区切り文字は前の文の末尾に残る仕様。
+        # この保持挙動が失われるとチャンク境界の意味論が壊れるため回帰テストで固定する。
+        text = "文A。文B！文C？文D。"
+        sentences = _split_sentences(text)
+        assert sentences == ["文A。", "文B！", "文C？", "文D。"]
+
+    def test_newline_is_treated_as_delimiter(self):
+        """改行も文の区切りとして扱われる（区切り文字は末尾に残る）"""
+        text = "1行目\n2行目\n3行目"
+        sentences = _split_sentences(text)
+        assert sentences == ["1行目\n", "2行目\n", "3行目"]
+
+    def test_pattern_is_compiled_once_at_module_level(self):
+        """正規表現は module ロード時に一度だけコンパイルされる。
+
+        `_split_sentences` はチャンカーのホットパスから繰り返し呼ばれるため、
+        呼び出しごとに `re.compile` を走らせない実装 (module-level 定数化) を
+        回帰テストで固定する。
+        """
+        assert isinstance(chunker._SENTENCE_SPLIT_PATTERN, re.Pattern)
+
+
+class TestGetChunkSize:
+    """_get_chunk_size のパース挙動（環境変数のエッジケース）"""
+
+    def test_default_when_env_var_unset(self, monkeypatch):
+        """CHUNK_SIZE 未設定時はデフォルト 500 を返す"""
+        monkeypatch.delenv("CHUNK_SIZE", raising=False)
+        assert _get_chunk_size() == 500
+
+    def test_reads_valid_env_value(self, monkeypatch):
+        """CHUNK_SIZE に有効な整数が設定されているときはその値を返す"""
+        monkeypatch.setenv("CHUNK_SIZE", "1200")
+        assert _get_chunk_size() == 1200
+
+    def test_below_minimum_is_clamped_to_50(self, monkeypatch):
+        """CHUNK_SIZE < 50 は下限 50 にクランプされる"""
+        monkeypatch.setenv("CHUNK_SIZE", "10")
+        assert _get_chunk_size() == 50
+
+    def test_zero_is_clamped_to_50(self, monkeypatch):
+        """CHUNK_SIZE=0 も下限 50 にクランプされる"""
+        monkeypatch.setenv("CHUNK_SIZE", "0")
+        assert _get_chunk_size() == 50
+
+    def test_negative_is_clamped_to_50(self, monkeypatch):
+        """負値もクランプされる（`< 50` の一般化）"""
+        monkeypatch.setenv("CHUNK_SIZE", "-100")
+        assert _get_chunk_size() == 50
+
+    def test_invalid_string_falls_back_to_default(self, monkeypatch):
+        """整数として解釈できない値は例外にせずデフォルト 500 にフォールバック"""
+        monkeypatch.setenv("CHUNK_SIZE", "not-a-number")
+        assert _get_chunk_size() == 500
+
+    def test_empty_string_falls_back_to_default(self, monkeypatch):
+        """空文字列も ValueError 経路でデフォルトにフォールバック"""
+        monkeypatch.setenv("CHUNK_SIZE", "")
+        assert _get_chunk_size() == 500
+
+
+class TestGetChunkOverlap:
+    """_get_chunk_overlap のパース挙動（環境変数のエッジケース）"""
+
+    def test_default_when_env_var_unset(self, monkeypatch):
+        """CHUNK_OVERLAP 未設定時はデフォルト 100 を返す"""
+        monkeypatch.delenv("CHUNK_OVERLAP", raising=False)
+        assert _get_chunk_overlap() == 100
+
+    def test_reads_valid_env_value(self, monkeypatch):
+        """CHUNK_OVERLAP に有効な整数が設定されているときはその値を返す"""
+        monkeypatch.setenv("CHUNK_OVERLAP", "42")
+        assert _get_chunk_overlap() == 42
+
+    def test_zero_is_allowed(self, monkeypatch):
+        """CHUNK_OVERLAP=0 はオーバーラップ無効化として受理される（下限クランプ対象外）"""
+        monkeypatch.setenv("CHUNK_OVERLAP", "0")
+        assert _get_chunk_overlap() == 0
+
+    def test_negative_is_clamped_to_zero(self, monkeypatch):
+        """負値は 0 にクランプされる（overlap は非負でなければ意味を持たない）"""
+        monkeypatch.setenv("CHUNK_OVERLAP", "-25")
+        assert _get_chunk_overlap() == 0
+
+    def test_invalid_string_falls_back_to_default(self, monkeypatch):
+        """整数として解釈できない値は例外にせずデフォルト 100 にフォールバック"""
+        monkeypatch.setenv("CHUNK_OVERLAP", "abc")
+        assert _get_chunk_overlap() == 100
+
+    def test_empty_string_falls_back_to_default(self, monkeypatch):
+        """空文字列も ValueError 経路でデフォルトにフォールバック"""
+        monkeypatch.setenv("CHUNK_OVERLAP", "")
+        assert _get_chunk_overlap() == 100
