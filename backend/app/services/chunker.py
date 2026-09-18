@@ -1,6 +1,15 @@
 """テキストのチャンク化処理"""
 
 import os
+import re
+
+
+# 文分割で使用する正規表現を module ロード時に一度だけコンパイルしておく。
+# `_split_sentences` は `chunk_text` の内側ループから呼ばれ、長いドキュメント
+# を投入するとチャンク数 × 呼び出し数分だけ実行されるため、関数呼び出しごとに
+# `re.compile` を走らせるとホットパスで無視できないオーバーヘッドになる。
+# 区切り文字（。 . ！ ？ ! ? 改行）を後読みで保持したまま分割するパターン。
+_SENTENCE_SPLIT_PATTERN = re.compile(r"(?<=[。.！？!?\n])")
 
 
 def _get_chunk_size() -> int:
@@ -96,8 +105,6 @@ def chunk_text(
 
 
 def _split_sentences(text: str) -> list[str]:
-    """日本語・英語の文を分割する"""
-    import re
-    # 。.！？!? や改行で分割（区切り文字は保持）
-    parts = re.split(r'(?<=[。.！？!?\n])', text)
+    """日本語・英語の文を分割する（区切り文字 。.！？!? / 改行は末尾に保持）"""
+    parts = _SENTENCE_SPLIT_PATTERN.split(text)
     return [p for p in parts if p.strip()]
