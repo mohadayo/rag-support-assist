@@ -11,6 +11,18 @@ logger = logging.getLogger(__name__)
 # 使用するLLMモデル名。環境変数 RAG_MODEL で変更可能（デフォルト: gpt-4o-mini）。
 RAG_MODEL = os.getenv("RAG_MODEL", "gpt-4o-mini")
 
+# 回答生成の temperature / max_tokens デフォルト値。
+# 環境変数 RAG_TEMPERATURE / RAG_MAX_TOKENS で上書き可能（`_get_temperature` /
+# `_get_max_tokens` 参照）。定数として外に出しておくことで、テストとドキュメントで
+# 「デフォルト値がいくつか」を単一のソースから参照できる。
+DEFAULT_TEMPERATURE = 0.3
+DEFAULT_MAX_TOKENS = 1500
+
+# OpenAI Chat Completions API が受け付ける temperature の範囲。
+# 範囲外の値はデフォルトへフォールバックする。
+_MIN_TEMPERATURE = 0.0
+_MAX_TEMPERATURE = 2.0
+
 _client: OpenAI | None = None
 
 TONE_INSTRUCTIONS = {
@@ -45,6 +57,43 @@ ESCALATION_CHECK_PROMPT = """以下の問い合わせと回答候補について
 JSON形式で回答してください:
 {{"should_escalate": true/false, "reason": "理由（不要ならnull）"}}
 """
+
+
+def _get_temperature() -> float:
+    """環境変数 RAG_TEMPERATURE から回答生成の temperature を取得する。
+
+    - 未設定・パース不能・範囲外 (0.0〜2.0 の閉区間外) の場合は
+      `DEFAULT_TEMPERATURE` にフォールバックする。
+    - `chunker._get_chunk_size` などと揃った「安全側にデフォルト」の姿勢。
+    """
+    raw = os.getenv("RAG_TEMPERATURE")
+    if raw is None or raw.strip() == "":
+        return DEFAULT_TEMPERATURE
+    try:
+        value = float(raw)
+    except (ValueError, TypeError):
+        return DEFAULT_TEMPERATURE
+    if value < _MIN_TEMPERATURE or value > _MAX_TEMPERATURE:
+        return DEFAULT_TEMPERATURE
+    return value
+
+
+def _get_max_tokens() -> int:
+    """環境変数 RAG_MAX_TOKENS から回答生成の max_tokens を取得する。
+
+    - 未設定・パース不能・1 未満の場合は `DEFAULT_MAX_TOKENS` にフォールバックする。
+    - 0 や負値は OpenAI API 側でエラーになるため、明示的にデフォルトへ寄せる。
+    """
+    raw = os.getenv("RAG_MAX_TOKENS")
+    if raw is None or raw.strip() == "":
+        return DEFAULT_MAX_TOKENS
+    try:
+        value = int(raw)
+    except (ValueError, TypeError):
+        return DEFAULT_MAX_TOKENS
+    if value < 1:
+        return DEFAULT_MAX_TOKENS
+    return value
 
 
 def get_client() -> OpenAI:
@@ -91,13 +140,22 @@ def generate_answer(
         },
     ]
 
-    logger.info("回答生成リクエスト: tone=%s, contexts=%d件", tone, len(contexts))
+    temperature = _get_temperature()
+    max_tokens = _get_max_tokens()
+
+    logger.info(
+        "回答生成リクエスト: tone=%s, contexts=%d件, temperature=%s, max_tokens=%d",
+        tone,
+        len(contexts),
+        temperature,
+        max_tokens,
+    )
 
     response = client.chat.completions.create(
         model=RAG_MODEL,
         messages=messages,
-        temperature=0.3,
-        max_tokens=1500,
+        temperature=temperature,
+        max_tokens=max_tokens,
     )
     answer = response.choices[0].message.content
 
