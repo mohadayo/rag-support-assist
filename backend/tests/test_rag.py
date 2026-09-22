@@ -92,6 +92,74 @@ class TestRagModelDefaultValue:
 
 
 # ---------------------------------------------------------------------------
+# RAG_TEMPERATURE / RAG_MAX_TOKENS 環境変数
+# ---------------------------------------------------------------------------
+
+
+class TestGetTemperature:
+    def test_defaults_when_env_not_set(self, monkeypatch):
+        monkeypatch.delenv("RAG_TEMPERATURE", raising=False)
+        assert rag._get_temperature() == rag.DEFAULT_TEMPERATURE
+
+    def test_defaults_when_env_is_empty_string(self, monkeypatch):
+        monkeypatch.setenv("RAG_TEMPERATURE", "")
+        assert rag._get_temperature() == rag.DEFAULT_TEMPERATURE
+
+    def test_reads_env_var(self, monkeypatch):
+        monkeypatch.setenv("RAG_TEMPERATURE", "0.7")
+        assert rag._get_temperature() == 0.7
+
+    def test_reads_zero(self, monkeypatch):
+        """0.0 は有効値なのでそのまま返す。"""
+        monkeypatch.setenv("RAG_TEMPERATURE", "0")
+        assert rag._get_temperature() == 0.0
+
+    def test_reads_upper_bound(self, monkeypatch):
+        """2.0 は範囲の上限として有効。"""
+        monkeypatch.setenv("RAG_TEMPERATURE", "2.0")
+        assert rag._get_temperature() == 2.0
+
+    @pytest.mark.parametrize("value", ["-0.1", "2.5", "10", "-5"])
+    def test_out_of_range_falls_back_to_default(self, monkeypatch, value):
+        monkeypatch.setenv("RAG_TEMPERATURE", value)
+        assert rag._get_temperature() == rag.DEFAULT_TEMPERATURE
+
+    @pytest.mark.parametrize("value", ["abc", "1.2.3", "not-a-number"])
+    def test_unparseable_falls_back_to_default(self, monkeypatch, value):
+        monkeypatch.setenv("RAG_TEMPERATURE", value)
+        assert rag._get_temperature() == rag.DEFAULT_TEMPERATURE
+
+
+class TestGetMaxTokens:
+    def test_defaults_when_env_not_set(self, monkeypatch):
+        monkeypatch.delenv("RAG_MAX_TOKENS", raising=False)
+        assert rag._get_max_tokens() == rag.DEFAULT_MAX_TOKENS
+
+    def test_defaults_when_env_is_empty_string(self, monkeypatch):
+        monkeypatch.setenv("RAG_MAX_TOKENS", "")
+        assert rag._get_max_tokens() == rag.DEFAULT_MAX_TOKENS
+
+    def test_reads_env_var(self, monkeypatch):
+        monkeypatch.setenv("RAG_MAX_TOKENS", "2000")
+        assert rag._get_max_tokens() == 2000
+
+    def test_reads_lower_bound(self, monkeypatch):
+        """1 は有効値の最小。"""
+        monkeypatch.setenv("RAG_MAX_TOKENS", "1")
+        assert rag._get_max_tokens() == 1
+
+    @pytest.mark.parametrize("value", ["0", "-1", "-100"])
+    def test_non_positive_falls_back_to_default(self, monkeypatch, value):
+        monkeypatch.setenv("RAG_MAX_TOKENS", value)
+        assert rag._get_max_tokens() == rag.DEFAULT_MAX_TOKENS
+
+    @pytest.mark.parametrize("value", ["abc", "1.5", "not-a-number"])
+    def test_unparseable_falls_back_to_default(self, monkeypatch, value):
+        monkeypatch.setenv("RAG_MAX_TOKENS", value)
+        assert rag._get_max_tokens() == rag.DEFAULT_MAX_TOKENS
+
+
+# ---------------------------------------------------------------------------
 # get_client
 # ---------------------------------------------------------------------------
 
@@ -200,6 +268,65 @@ class TestGenerateAnswerWithContext:
             contexts=[{"document_name": "a.txt", "category": "faq", "content": "内容"}],
         )
         assert fake.chat.completions.calls[0]["model"] == rag.RAG_MODEL
+
+    def test_default_temperature_and_max_tokens_are_used(self, monkeypatch):
+        """RAG_TEMPERATURE / RAG_MAX_TOKENS が未設定のとき、デフォルト値が使われる。"""
+        monkeypatch.delenv("RAG_TEMPERATURE", raising=False)
+        monkeypatch.delenv("RAG_MAX_TOKENS", raising=False)
+        fake = self._install_fake_client(
+            monkeypatch,
+            [
+                "回答",
+                json.dumps({"should_escalate": False, "reason": None}),
+            ],
+        )
+        generate_answer(
+            query="テスト",
+            contexts=[{"document_name": "a.txt", "category": "faq", "content": "内容"}],
+        )
+        call = fake.chat.completions.calls[0]
+        assert call["temperature"] == rag.DEFAULT_TEMPERATURE
+        assert call["max_tokens"] == rag.DEFAULT_MAX_TOKENS
+
+    def test_env_overrides_temperature_and_max_tokens(self, monkeypatch):
+        """RAG_TEMPERATURE / RAG_MAX_TOKENS が指定されているとき、その値が呼び出しに反映される。"""
+        monkeypatch.setenv("RAG_TEMPERATURE", "0.9")
+        monkeypatch.setenv("RAG_MAX_TOKENS", "512")
+        fake = self._install_fake_client(
+            monkeypatch,
+            [
+                "回答",
+                json.dumps({"should_escalate": False, "reason": None}),
+            ],
+        )
+        generate_answer(
+            query="テスト",
+            contexts=[{"document_name": "a.txt", "category": "faq", "content": "内容"}],
+        )
+        call = fake.chat.completions.calls[0]
+        assert call["temperature"] == 0.9
+        assert call["max_tokens"] == 512
+
+    def test_escalation_call_is_unaffected_by_temperature_env(self, monkeypatch):
+        """エスカレーション判定は temperature=0 固定であり、RAG_TEMPERATURE で上書きされない。"""
+        monkeypatch.setenv("RAG_TEMPERATURE", "1.5")
+        monkeypatch.setenv("RAG_MAX_TOKENS", "999")
+        fake = self._install_fake_client(
+            monkeypatch,
+            [
+                "回答",
+                json.dumps({"should_escalate": False, "reason": None}),
+            ],
+        )
+        generate_answer(
+            query="テスト",
+            contexts=[{"document_name": "a.txt", "category": "faq", "content": "内容"}],
+        )
+        escalation_call = fake.chat.completions.calls[1]
+        # エスカレーション判定は「決定的な判定を得るため」 temperature=0 が固定要件
+        assert escalation_call["temperature"] == 0
+        # 判定用の max_tokens も従来通り 200 固定（JSON なので短い応答で十分）
+        assert escalation_call["max_tokens"] == 200
 
     def test_context_text_includes_document_metadata(self, monkeypatch):
         """user メッセージには document_name / category / content が含まれる。"""
