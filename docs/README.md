@@ -9,6 +9,7 @@
 | REST API の仕様・エンドポイント・リクエスト/レスポンス例を確認したい | [`API.md`](API.md) |
 | システム全体像・サービス責務・データフローを把握したい | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 | 環境変数・設定項目・チューニングポイントを調べたい | [`CONFIGURATION.md`](CONFIGURATION.md) |
+| RAG のシステムプロンプト・トーン切替・エスカレーション判定プロンプトの設計意図と変更時の注意を知りたい | [`PROMPT_GUIDELINES.md`](PROMPT_GUIDELINES.md) |
 | 回答品質の評価（Eval）方針・実行手順・指標を知りたい | [`EVAL.md`](EVAL.md) |
 | 症状から障害切り分け手順を辿りたい・エラー時の対処を調べたい | [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) |
 
@@ -20,8 +21,9 @@
 2. [`ARCHITECTURE.md`](ARCHITECTURE.md) — backend (Python) / frontend の全体構成、RAG パイプラインの流れを把握
 3. [`CONFIGURATION.md`](CONFIGURATION.md) — 環境変数と設定の全体像
 4. [`API.md`](API.md) — 実際に API を叩くときのリファレンス
-5. [`EVAL.md`](EVAL.md) — 回答品質を評価・回帰する仕組みを知る
-6. [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) — 詰まったときのリファレンス
+5. [`PROMPT_GUIDELINES.md`](PROMPT_GUIDELINES.md) — 回答生成プロンプトの設計思想と変更時のチェックリスト
+6. [`EVAL.md`](EVAL.md) — 回答品質を評価・回帰する仕組みを知る
+7. [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) — 詰まったときのリファレンス
 
 ## リポジトリ全体のガイド
 
