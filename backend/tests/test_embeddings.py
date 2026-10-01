@@ -106,3 +106,47 @@ def test_generate_embedding_single(monkeypatch):
         "model": "text-embedding-3-small",
         "input": ["単一テキスト"],
     }
+
+
+def test_embedding_model_env_override(monkeypatch):
+    """環境変数 EMBEDDING_MODEL を指定するとその値が SDK に渡される。"""
+    fake_client = _FakeClient()
+    monkeypatch.setattr(embeddings, "OpenAI", lambda: fake_client)
+    monkeypatch.setenv("EMBEDDING_MODEL", "text-embedding-3-large")
+
+    embeddings.generate_embeddings(["env override test"])
+
+    assert fake_client.embeddings.last_call == {
+        "model": "text-embedding-3-large",
+        "input": ["env override test"],
+    }
+
+
+def test_embedding_model_env_blank_falls_back_to_default(monkeypatch):
+    """空白のみの EMBEDDING_MODEL は DEFAULT_EMBEDDING_MODEL にフォールバックする。"""
+    fake_client = _FakeClient()
+    monkeypatch.setattr(embeddings, "OpenAI", lambda: fake_client)
+    monkeypatch.setenv("EMBEDDING_MODEL", "   ")  # 空白のみ
+
+    embeddings.generate_embeddings(["blank env test"])
+
+    assert fake_client.embeddings.last_call == {
+        "model": embeddings.DEFAULT_EMBEDDING_MODEL,
+        "input": ["blank env test"],
+    }
+
+
+def test_embedding_model_unset_env_uses_default(monkeypatch):
+    """EMBEDDING_MODEL 未設定時はデフォルトモデルが使われる。"""
+    fake_client = _FakeClient()
+    monkeypatch.setattr(embeddings, "OpenAI", lambda: fake_client)
+    monkeypatch.delenv("EMBEDDING_MODEL", raising=False)
+
+    embeddings.generate_embeddings(["unset env test"])
+
+    assert fake_client.embeddings.last_call == {
+        "model": embeddings.DEFAULT_EMBEDDING_MODEL,
+        "input": ["unset env test"],
+    }
+    # 既存テストの参照一貫性を回帰的に確認（README / docs も text-embedding-3-small 前提）。
+    assert embeddings.DEFAULT_EMBEDDING_MODEL == "text-embedding-3-small"
