@@ -2,8 +2,14 @@
 
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY --chown=node:node package.json package-lock.json* ./
-RUN npm install
+# `npm ci` は package-lock.json 必須なので glob の `*` は付けない。
+# lockfile が無ければ COPY 時点で失敗させ、意図しないフォールバックを防ぐ。
+COPY --chown=node:node package.json package-lock.json ./
+# `npm install` は semver range を解決し直すため、同じコミットから
+# 異なる依存バージョンでイメージが作られうる。`npm ci` は lockfile に
+# 完全一致した依存ツリーをインストールし、CI (frontend-ci.yml) と
+# 同じ再現性を Docker ビルドにも持ち込む。
+RUN npm ci
 COPY --chown=node:node . .
 RUN npm run build
 
