@@ -23,6 +23,8 @@ DATABASE_URL=postgres://user:password@localhost:5432/rag_support?sslmode=disable
 |--------|-----------|----------|------|----------|
 | `CORS_ORIGINS` | `http://localhost:3000` | カンマ区切り文字列 | FastAPI の CORS ミドルウェアで許可するオリジン。カンマ区切りで複数指定できます。 | `backend/app/main.py` |
 | `RAG_MODEL` | `gpt-4o-mini` | OpenAI Chat モデル名 | 回答生成 (`generate_answer`) とエスカレーション判定 (`_check_escalation`) の双方で共通利用します。 | `backend/app/services/rag.py` |
+| `RAG_TEMPERATURE` | `0.3` | 浮動小数 (閉区間 `0.0〜2.0`、範囲外・非数値はデフォルトへフォールバック) | 回答生成 (`generate_answer`) の `temperature`。エスカレーション判定 (`_check_escalation`) は決定的な判定を得るため常に `0` 固定で、本変数の影響を受けません。 | `backend/app/services/rag.py` |
+| `RAG_MAX_TOKENS` | `1500` | 整数 (1 以上、0 以下・非数値はデフォルトへフォールバック) | 回答生成 (`generate_answer`) の `max_tokens`。エスカレーション判定 (`_check_escalation`) は常に `200` 固定で、本変数の影響を受けません。 | `backend/app/services/rag.py` |
 | `MAX_UPLOAD_SIZE_MB` | `10` | 正の整数 (MB) | 文書アップロード API で許容するファイルサイズ上限。不正値 (負・0・非数値) 指定時はデフォルト値にフォールバックし警告ログを出力します。 | `backend/app/routers/documents.py` |
 | `CHUNK_SIZE` | `500` | 整数 (最小 50 にクランプ、非数値時はデフォルトへフォールバック) | チャンク化 (`chunk_text`) の 1 chunk あたりの最大文字数。Embedding API のトークン消費量と検索の粒度に直結するチューニングパラメータ。 | `backend/app/services/chunker.py` |
 | `CHUNK_OVERLAP` | `100` | 0 以上の整数 (`CHUNK_SIZE` 以上を指定した場合は `CHUNK_SIZE // 2` にクランプ) | 隣接 chunk 間で末尾を次 chunk 冒頭に持ち込む文字数。境界コンテキストを保持して検索精度を高めるための設定。 | `backend/app/services/chunker.py` |
@@ -34,6 +36,10 @@ DATABASE_URL=postgres://user:password@localhost:5432/rag_support?sslmode=disable
   値は各要素で `strip()` されるためカンマ前後の空白は許容されます。
 - **`RAG_MODEL`**
   `gpt-4o-mini` を含む OpenAI Chat モデル名を指定します。エスカレーション判定は `response_format={"type": "json_object"}` を利用するため、JSON モードをサポートするモデルを指定してください。
+- **`RAG_TEMPERATURE`**
+  回答生成時の `temperature` を指定します。閉区間 `0.0〜2.0` の範囲で、範囲外・非数値 (空文字列を含む) を指定した場合はデフォルト値 (`0.3`) にフォールバックします。値を小さくすると出力は決定的になり再現性が高くなり、大きくすると表現の多様性が増えますが参照文書から外れたハルシネーションのリスクも高まります。なお、エスカレーション判定 (`_check_escalation`) は決定性を担保するため常に `0` 固定で、本変数の影響を受けません。
+- **`RAG_MAX_TOKENS`**
+  回答生成時の `max_tokens` を指定します。1 以上の整数で、0 以下・非数値 (空文字列を含む) を指定した場合はデフォルト値 (`1500`) にフォールバックします。OpenAI API 側では 0 や負値がエラーになるため、明示的にデフォルトへ寄せています。値を増やすと長文の回答を生成しやすくなりますが、1 リクエストあたりのコストと応答時間も増加します。なお、エスカレーション判定 (`_check_escalation`) は JSON の短い出力のみを扱うため `200` 固定で、本変数の影響を受けません。
 - **`MAX_UPLOAD_SIZE_MB`**
   アプリ起動時に一度だけ解決され、実行中に環境変数を変更しても反映されません。変更する場合はプロセスを再起動してください。
 - **`CHUNK_SIZE`**
