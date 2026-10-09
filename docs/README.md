@@ -8,6 +8,7 @@
 | --- | --- |
 | REST API の仕様・エンドポイント・リクエスト/レスポンス例を確認したい | [`API.md`](API.md) |
 | システム全体像・サービス責務・データフローを把握したい | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| CI ワークフロー（ci / frontend-ci / codeql / ci-auto-fix）の目的・前提・切り分け方を知りたい | [`CI.md`](CI.md) |
 | 環境変数・設定項目・チューニングポイントを調べたい | [`CONFIGURATION.md`](CONFIGURATION.md) |
 | RAG のシステムプロンプト・トーン切替・エスカレーション判定プロンプトの設計意図と変更時の注意を知りたい | [`PROMPT_GUIDELINES.md`](PROMPT_GUIDELINES.md) |
 | 回答品質の評価（Eval）方針・実行手順・指標を知りたい | [`EVAL.md`](EVAL.md) |
@@ -23,7 +24,8 @@
 4. [`API.md`](API.md) — 実際に API を叩くときのリファレンス
 5. [`PROMPT_GUIDELINES.md`](PROMPT_GUIDELINES.md) — 回答生成プロンプトの設計思想と変更時のチェックリスト
 6. [`EVAL.md`](EVAL.md) — 回答品質を評価・回帰する仕組みを知る
-7. [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) — 詰まったときのリファレンス
+7. [`CI.md`](CI.md) — backend / frontend / セキュリティスキャンの CI 構成
+8. [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) — 詰まったときのリファレンス
 
 ## リポジトリ全体のガイド
 
