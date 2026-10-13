@@ -29,7 +29,7 @@ def _parse_max_upload_size_mb() -> int:
     return value
 
 
-# ファイルサイズ上限（環境変数 MAX_UPLOAD_SIZE_MB で設定可能、デフォルト10MB）
+# ファイルサイズ上限（環境変数 MAX_UPLOAD_SIZE_MB で設定可能、デフォル〈10MB）
 _MAX_UPLOAD_SIZE_MB = _parse_max_upload_size_mb()
 _MAX_UPLOAD_SIZE_BYTES = _MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
@@ -135,6 +135,15 @@ async def upload_document(
             status_code=400,
             detail=f"対応形式: {', '.join(allowed_extensions)}",
         )
+
+    # `category` は `Form(...)` から文字列として渡ってくる。クライアントが
+    # `category=" faq "` のように誤って前後空白を含めて送ってきた場合、
+    # trim しないまま `allowed_categories` と等価比較するとヒットせず、
+    # 400「unknown category」が返るうえ、将来 allowed に無い値が通ってしまうと
+    # DB にも空白混じりで保存される。`QueryRequest.query_must_not_be_empty`
+    # が read パス側で既に strip() 済みなのに揃え、write パスでも同じ入力
+    # 正規化方針を取る。
+    category = category.strip()
 
     allowed_categories = {"faq", "terms", "manual", "history"}
     if category not in allowed_categories:
