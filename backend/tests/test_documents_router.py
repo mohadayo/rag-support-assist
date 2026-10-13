@@ -190,6 +190,35 @@ class TestUploadFilenameValidation:
         assert "制御" in resp.json()["detail"]
 
 
+class TestUploadCategoryTrimming:
+    """`category` フォーム値の入力正規化。
+
+    クライアントが誤って前後空白を含めて送ってきた (`category=" faq "`) 場合、
+    サーバ側で strip してから `allowed_categories` と比較することで、
+    「見かけ上有効なカテゴリなのに unknown category と 400 返却される」症状を
+    防ぐ。これは `QueryRequest.query_must_not_be_empty` が `.strip()` を
+    返している read パス側と同じ入力正規化方針を write パスにも適用する
+    対称性の修正である。
+    """
+
+    def test_upload_trims_whitespace_in_category(self, client):
+        # 既存の正常系と同じシェイプで、カテゴリにだけ前後空白を混ぜる。
+        # strip 後に "faq" として受理され、2xx で成功することを期待する。
+        with patch("app.routers.documents.chunk_text", return_value=["c1"]), \
+             patch("app.routers.documents.add_documents", return_value=1):
+            resp = _upload(client, b"content", "file.txt", " faq ")
+        assert resp.status_code == 200
+        # DB 保存後の値 (レスポンスにそのまま返る `category`) も strip 済み
+        assert resp.json()["category"] == "faq"
+
+    def test_upload_rejects_category_with_only_whitespace(self, client):
+        """空白のみの category は strip 後に空文字となり、allowed_categories に
+        含まれないため、既存の 400 「unknown category」経路に落ちる。"""
+        resp = _upload(client, b"content", "file.txt", "   ")
+        assert resp.status_code == 400
+        assert "カテゴリ" in resp.json()["detail"]
+
+
 class TestListDocuments:
     def test_正常系_空一覧(self, client):
         with patch("app.routers.documents.get_document_stats", return_value=[]):
