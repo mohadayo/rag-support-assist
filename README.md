@@ -3,8 +3,8 @@
 [![CI](https://github.com/mohadayo/rag-support-assist/actions/workflows/ci.yml/badge.svg)](https://github.com/mohadayo/rag-support-assist/actions/workflows/ci.yml)
 [![CI Auto Fix](https://github.com/mohadayo/rag-support-assist/actions/workflows/ci-auto-fix.yml/badge.svg)](https://github.com/mohadayo/rag-support-assist/actions/workflows/ci-auto-fix.yml)
 [![Frontend CI](https://github.com/mohadayo/rag-support-assist/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/mohadayo/rag-support-assist/actions/workflows/frontend-ci.yml)
-[![Python](https://img.shields.io/badge/python-3.12+-3776ab.svg?logo=python&logoColor=white)](backend/)
-[![TypeScript](https://img.shields.io/badge/typescript-5+-3178c6.svg?logo=typescript&logoColor=white)](frontend/)
+[![Python](https://img.shields.io/badge/python-3.11+-3776ab.svg?logo=python&logoColor=white)](backend/)
+[![TypeScript](https://img.shields.io/badge/typescript-6+-3178c6.svg?logo=typescript&logoColor=white)](frontend/)
 [![Next.js](https://img.shields.io/badge/next.js-16+-000000.svg?logo=next.js&logoColor=white)](frontend/)
 
 カスタマーサポート回答支援AI - FAQ・規約・マニュアル・過去問い合わせを参照し、回答候補を生成するRAGサービス
@@ -39,7 +39,7 @@
 
 | レイヤー | 技術 |
 |---------|------|
-| フロントエンド | Next.js 15, React 19, Tailwind CSS 4 |
+| フロントエンド | Next.js 16, React 19, Tailwind CSS 4 |
 | バックエンド | Python 3.11, FastAPI |
 | ベクトルDB | PostgreSQL 16 + pgvector（psycopg2 経由） |
 | LLM / Embedding | OpenAI API (gpt-4o-mini / text-embedding-3-small) |
