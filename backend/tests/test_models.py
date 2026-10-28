@@ -77,6 +77,40 @@ class TestSourceDocument:
         assert doc.content == "テストコンテンツ"
         assert doc.relevance_score == 0.95
 
+    def test_relevance_score_zero_is_valid(self):
+        """relevance_score=0.0 は境界値として有効（query.py の `max(0.0, ...)` 経路）"""
+        doc = SourceDocument(
+            content="c", document_name="d.md", category="faq", relevance_score=0.0
+        )
+        assert doc.relevance_score == 0.0
+
+    def test_relevance_score_one_is_valid(self):
+        """relevance_score=1.0 は境界値として有効（cosine 距離 0 のケース）"""
+        doc = SourceDocument(
+            content="c", document_name="d.md", category="faq", relevance_score=1.0
+        )
+        assert doc.relevance_score == 1.0
+
+    def test_relevance_score_negative_raises_validation_error(self):
+        """relevance_score < 0 は Field(ge=0.0) 制約で ValidationError"""
+        with pytest.raises(ValidationError):
+            SourceDocument(
+                content="c",
+                document_name="d.md",
+                category="faq",
+                relevance_score=-0.01,
+            )
+
+    def test_relevance_score_greater_than_one_raises_validation_error(self):
+        """relevance_score > 1 は Field(le=1.0) 制約で ValidationError"""
+        with pytest.raises(ValidationError):
+            SourceDocument(
+                content="c",
+                document_name="d.md",
+                category="faq",
+                relevance_score=1.5,
+            )
+
 
 class TestDocumentInfo:
     """DocumentInfo モデルのテスト"""
@@ -92,6 +126,32 @@ class TestDocumentInfo:
         )
         assert info.id == "test-id-123"
         assert info.chunk_count == 10
+
+    def test_chunk_count_zero_is_valid(self):
+        """chunk_count=0 は境界値として有効（empty document 登録ケース）"""
+        info = DocumentInfo(
+            id="id",
+            name="a.md",
+            category="faq",
+            chunk_count=0,
+            uploaded_at="2026-08-17T00:00:00+00:00",
+        )
+        assert info.chunk_count == 0
+
+    def test_chunk_count_negative_raises_validation_error(self):
+        """chunk_count < 0 は Field(ge=0) 制約で ValidationError
+
+        チャンク数が負になるケースはベクトルストア側のバグを示唆するため、
+        レスポンス境界でも早期に検出する。
+        """
+        with pytest.raises(ValidationError):
+            DocumentInfo(
+                id="id",
+                name="a.md",
+                category="faq",
+                chunk_count=-1,
+                uploaded_at="2026-08-17T00:00:00+00:00",
+            )
 
 
 class TestQueryResponse:
@@ -226,3 +286,12 @@ class TestDocumentListResponse:
         """`total` は必須フィールド"""
         with pytest.raises(ValidationError):
             DocumentListResponse(documents=[])  # type: ignore[call-arg]
+
+    def test_total_negative_raises_validation_error(self):
+        """`total` < 0 は Field(ge=0) 制約で ValidationError
+
+        総数が負になるケースはページング／集計層のバグを示唆するため、
+        レスポンス境界でも早期に検出する。
+        """
+        with pytest.raises(ValidationError):
+            DocumentListResponse(documents=[], total=-1)
