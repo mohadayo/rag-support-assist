@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 Tone = Literal["polite", "concise", "standard"]
 
@@ -27,7 +27,11 @@ class SourceDocument(BaseModel):
     content: str
     document_name: str
     category: str
-    relevance_score: float
+    # `relevance_score` は `query.py` 側で `max(0.0, 1.0 - cosine距離)` として
+    # 算出されるため、常に [0.0, 1.0] に収まる契約を持つ。Pydantic の Field
+    # 制約で範囲外の値を早期に弾くことで、将来 ingest / search ロジックが
+    # 変わってもサイレントに契約が崩れないようにする（多層防御）。
+    relevance_score: float = Field(ge=0.0, le=1.0)
 
 
 class QueryResponse(BaseModel):
@@ -43,11 +47,14 @@ class DocumentInfo(BaseModel):
     id: str
     name: str
     category: str
-    chunk_count: int
+    # チャンク数は論理上非負（0 件登録のケースは有効）。負値はベクトル
+    # ストア側のバグを示唆するため、レスポンス境界でも早期に検出する。
+    chunk_count: int = Field(ge=0)
     uploaded_at: str
 
 
 class DocumentListResponse(BaseModel):
     """ドキュメント一覧レスポンス"""
     documents: list[DocumentInfo]
-    total: int
+    # ページング前の総数。`chunk_count` と同じ理由で非負を強制する。
+    total: int = Field(ge=0)
