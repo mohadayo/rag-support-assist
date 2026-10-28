@@ -19,6 +19,15 @@ class QueryRequest(BaseModel):
             raise ValueError("問い合わせ文を入力してください")
         if len(v) > 5000:
             raise ValueError("問い合わせ文は5000文字以内で入力してください")
+        # NUL バイトは正当な問い合わせ文に含まれる余地が無く、ログ出力時の
+        # truncation やログ基盤 (Elasticsearch / fluentd 等) での解析失敗の
+        # 原因となる。`documents.py::_validate_filename` と揃った多層防御の
+        # 一環として、API の入り口で明示的に拒否する。
+        # なお `\t` / `\r` / `\n` は複数行の問い合わせ本文として正当に
+        # 使われうるため、ここでは NUL のみに限定して許容範囲を広く取る
+        # (ファイル名バリデータとは要件が異なる)。
+        if "\x00" in v:
+            raise ValueError("問い合わせ文に NUL バイトは使用できません")
         return v.strip()
 
 

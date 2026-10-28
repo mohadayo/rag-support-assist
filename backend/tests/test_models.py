@@ -62,6 +62,43 @@ class TestQueryRequest:
             req = QueryRequest(query="テスト", tone=tone)
             assert req.tone == tone
 
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "foo\x00bar",       # 本文中に NUL
+            "\x00テスト",         # 先頭に NUL
+            "テスト\x00",         # 末尾に NUL
+            "a\x00\x00b",        # 連続 NUL
+        ],
+    )
+    def test_null_byte_in_query_raises_validation_error(self, query):
+        """問い合わせ文に NUL バイト (\\x00) を含む場合は拒否される。
+
+        NUL バイトはログ truncation やログ基盤での解析失敗の原因となるため、
+        `documents.py::_validate_filename` と揃った多層防御として API の
+        入り口で明示的に 422 として弾く。
+        """
+        with pytest.raises(ValidationError):
+            QueryRequest(query=query)
+
+    @pytest.mark.parametrize(
+        "query,expected",
+        [
+            ("1 行目\n2 行目", "1 行目\n2 行目"),            # LF は許容
+            ("col1\tcol2", "col1\tcol2"),                   # TAB は許容
+            ("行 A\r\n行 B", "行 A\r\n行 B"),                 # CRLF は許容
+        ],
+    )
+    def test_tab_and_newline_are_allowed(self, query, expected):
+        """タブ・LF・CR は複数行の問い合わせ本文として正当に使われうるため許容する。
+
+        NUL バイト拒否はログ事故対策であり、改行・タブは問い合わせ内容として
+        意味を持ちうるため、ファイル名バリデータとは要件が異なる (= 制御文字
+        一律拒否ではない) ことを回帰テストで固定しておく。
+        """
+        req = QueryRequest(query=query)
+        assert req.query == expected
+
 
 class TestSourceDocument:
     """SourceDocument モデルのテスト"""
