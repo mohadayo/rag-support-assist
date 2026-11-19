@@ -21,7 +21,7 @@ DATABASE_URL=postgres://user:password@localhost:5432/rag_support?sslmode=disable
 
 | 変数名 | デフォルト | 型 / 制約 | 用途 | 参照箇所 |
 |--------|-----------|----------|------|----------|
-| `CORS_ORIGINS` | `http://localhost:3000` | カンマ区切り文字列 | FastAPI の CORS ミドルウェアで許可するオリジン。カンマ区切りで複数指定できます。 | `backend/app/main.py` |
+| `CORS_ORIGINS` | `http://localhost:3000` | カンマ区切り文字列 (空要素は除外、結果が空の場合はデフォルトへフォールバック) | FastAPI の CORS ミドルウェアで許可するオリジン。カンマ区切りで複数指定できます。 | `backend/app/main.py` |
 | `RAG_MODEL` | `gpt-4o-mini` | OpenAI Chat モデル名 | 回答生成 (`generate_answer`) とエスカレーション判定 (`_check_escalation`) の双方で共通利用します。 | `backend/app/services/rag.py` |
 | `RAG_TEMPERATURE` | `0.3` | 浮動小数 (閉区間 `0.0〜2.0`、範囲外・非数値はデフォルトへフォールバック) | 回答生成 (`generate_answer`) の `temperature`。エスカレーション判定 (`_check_escalation`) は決定的な判定を得るため常に `0` 固定で、本変数の影響を受けません。 | `backend/app/services/rag.py` |
 | `RAG_MAX_TOKENS` | `1500` | 整数 (1 以上、0 以下・非数値はデフォルトへフォールバック) | 回答生成 (`generate_answer`) の `max_tokens`。エスカレーション判定 (`_check_escalation`) は常に `200` 固定で、本変数の影響を受けません。 | `backend/app/services/rag.py` |
@@ -34,6 +34,9 @@ DATABASE_URL=postgres://user:password@localhost:5432/rag_support?sslmode=disable
 - **`CORS_ORIGINS`**
   例: `CORS_ORIGINS=http://localhost:3000,https://example.com`
   値は各要素で `strip()` されるためカンマ前後の空白は許容されます。
+  空文字・空要素 (例: `"a,,b"` / `"a,"` / `" , , "`) はサイレントに空 origin を
+  許可しないよう捨てられ、結果が空の場合はデフォルト (`http://localhost:3000`)
+  1 件にフォールバックします。
 - **`RAG_MODEL`**
   `gpt-4o-mini` を含む OpenAI Chat モデル名を指定します。エスカレーション判定は `response_format={"type": "json_object"}` を利用するため、JSON モードをサポートするモデルを指定してください。
 - **`RAG_TEMPERATURE`**

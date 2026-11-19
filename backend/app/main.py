@@ -38,10 +38,34 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000")
+# CORS で許可するオリジンのデフォルト値。ローカル開発時の Next.js dev
+# サーバを想定している。環境変数 `CORS_ORIGINS` でカンマ区切り複数指定が可能。
+DEFAULT_CORS_ORIGIN = "http://localhost:3000"
+
+
+def _parse_cors_origins() -> list[str]:
+    """環境変数 `CORS_ORIGINS` を解釈して許可オリジンのリストを返す。
+
+    - カンマ区切りで複数指定可能。各要素は `strip()` して前後空白を除く。
+    - 空文字・空白のみの要素は捨てる (`CORS_ORIGINS="a,,b"` / `"a,"` /
+      `" , , "` のような誤設定で空 origin が許可されるのを防ぐ)。
+    - 未設定・空文字・全要素が空白のいずれの場合も、`DEFAULT_CORS_ORIGIN`
+      1 件へフォールバックする。これは `chunker._get_chunk_size` 等と揃った
+      「安全側にデフォルト」の姿勢。
+    """
+    raw = os.getenv("CORS_ORIGINS")
+    if raw is None:
+        return [DEFAULT_CORS_ORIGIN]
+    origins = [origin.strip() for origin in raw.split(",")]
+    origins = [origin for origin in origins if origin]
+    if not origins:
+        return [DEFAULT_CORS_ORIGIN]
+    return origins
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[origin.strip() for origin in cors_origins.split(",")],
+    allow_origins=_parse_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
