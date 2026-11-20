@@ -1,14 +1,51 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
 venv/
+.venv/
+env/
 .env
 backend/chroma_data/
+
+# Python - test / lint caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+
+# Python - coverage
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Python - build artifacts
+*.egg-info/
+build/
+dist/
 
 # Node
 node_modules/
 .next/
+out/
+.vercel/
 frontend/.env.local
+
+# Node - debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Logs
+*.log
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
 
 # OS
 .DS_Store
